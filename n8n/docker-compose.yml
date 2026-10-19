@@ -1,0 +1,21 @@
+# n8n local para el motor de priorización de Vortic.
+# Levantar:  docker compose up -d     (desde esta carpeta)
+# Abrir:     http://localhost:5678
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=America/Argentina/Cordoba
+      - TZ=America/Argentina/Cordoba
+      - N8N_SECURE_COOKIE=false
+    # Permite que n8n (dentro del contenedor) llegue al backend de tu máquina
+    # como http://host.docker.internal:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - n8n_datos:/home/node/.n8n
+volumes:
+  n8n_datos:

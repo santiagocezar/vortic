@@ -1,0 +1,416 @@
+{
+ "name": "Vortic - Priorización de órdenes",
+ "nodes": [
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "vortic-priorizar",
+    "authentication": "headerAuth",
+    "responseMode": "onReceived",
+    "options": {}
+   },
+   "id": "d1f0a9e6-cacb-4c8f-be11-ccdcf6e3f3e0",
+   "name": "Aviso de Vortic",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    0
+   ],
+   "webhookId": "8f3c2a51-vortic-priorizar",
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "vorticWebhookSecreto",
+     "name": "Vortic - secreto del webhook"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "cronExpression",
+       "expression": "30 7 * * *"
+      }
+     ]
+    }
+   },
+   "id": "7b167784-ec1f-40ce-8864-b0ac80a5a70e",
+   "name": "Todos los días 7:30",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.2,
+   "position": [
+    0,
+    220
+   ]
+  },
+  {
+   "parameters": {
+    "assignments": {
+     "assignments": [
+      {
+       "id": "e752fb30-b59e-4d48-a393-c3d27d3c4bfe",
+       "name": "vortic_api",
+       "value": "http://host.docker.internal:8000/api",
+       "type": "string"
+      },
+      {
+       "id": "f964bee9-24cb-4250-97d9-5e96f5420809",
+       "name": "url_modelo",
+       "value": "https://api.anthropic.com/v1/messages",
+       "type": "string"
+      },
+      {
+       "id": "88dc36c2-96a9-465e-8f16-b14f83abd595",
+       "name": "modelo",
+       "value": "claude-haiku-5-5",
+       "type": "string"
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "e2a9e62d-2941-4b8e-8c50-68bd479b7589",
+   "name": "Configuración",
+   "type": "n8n-nodes-base.set",
+   "typeVersion": 3.4,
+   "position": [
+    240,
+    100
+   ]
+  },
+  {
+   "parameters": {
+    "method": "GET",
+    "url": "={{ $json.vortic_api }}/motor/ordenes-activas/",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "options": {
+     "timeout": 60000
+    }
+   },
+   "id": "89512731-55ea-4dfc-941c-457a794ae7f5",
+   "name": "Traer órdenes activas",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    480,
+    100
+   ],
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "vorticMotorToken",
+     "name": "Vortic - token del motor"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict"
+     },
+     "conditions": [
+      {
+       "id": "2a8c1670-b345-4507-9243-4dabe51aca58",
+       "leftValue": "={{ $json.ordenes.length }}",
+       "rightValue": 0,
+       "operator": {
+        "type": "number",
+        "operation": "gt"
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "48e24a4d-4b47-4203-929b-0191fd53a18e",
+   "name": "¿Hay órdenes activas?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    720,
+    100
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Arma el pedido al modelo de IA con las reglas del taller (vienen del\n// backend) y las órdenes activas anonimizadas.\nconst datos = $input.first().json;\nconst cfg = $('Configuración').first().json;\n\nconst sistema = [\n  'Sos el asistente de planificación de un taller de reparación oleohidráulica.',\n  'Tenés que ordenar las órdenes de trabajo activas según las reglas del taller.',\n  'Reglas:',\n  ...datos.reglas.map((r, i) => `${i + 1}. ${r}`),\n  '',\n  'Respondé SOLO con un objeto JSON, sin texto antes ni después, con esta forma exacta:',\n  '{\"resultados\": [{\"orden_id\": <número>, \"puntaje\": <número de 0 a 100>, \"justificacion\": \"<una o dos oraciones>\"}]}',\n  'Incluí todas las órdenes recibidas, una sola vez cada una. Mayor puntaje = atender antes.',\n  'La justificación tiene que nombrar los factores concretos de esa orden (criticidad, repuestos, días, tiempo) y no superar los 200 caracteres.',\n].join('\\n');\n\nconst body = {\n  model: cfg.modelo,\n  max_tokens: 4000,\n  system: sistema,\n  messages: [\n    { role: 'user', content: 'Órdenes activas:\\n' + JSON.stringify(datos.ordenes, null, 1) },\n  ],\n};\n\nreturn [{ json: { body, ordenes_enviadas: datos.ordenes.map(o => o.orden_id) } }];\n"
+   },
+   "id": "e7d539fb-de20-4bb3-9a8e-1a216b51283a",
+   "name": "Armar pedido a la IA",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    960,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.url_modelo }}",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "options": {
+     "timeout": 60000
+    },
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "anthropic-version",
+       "value": "2023-06-01"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.body) }}"
+   },
+   "id": "6950c943-ceb6-45df-bfb3-b975176b5151",
+   "name": "Consultar modelo de IA",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1200,
+    0
+   ],
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "anthropicApiKey",
+     "name": "Anthropic - clave de API"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Interpreta la respuesta del modelo. Si no es un JSON con la forma\n// esperada, se marca como inválida y el flujo aplica la regla de respaldo.\n// El backend vuelve a validar cada orden (puntaje de 0 a 100, orden activa,\n// sin repetidas) y completa con la regla las que falten.\nconst r = $input.first().json;\nlet resultados = null;\nlet error = '';\ntry {\n  const texto = (r.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();\n  const limpio = texto.replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/, '');\n  const obj = JSON.parse(limpio);\n  if (!Array.isArray(obj.resultados)) throw new Error('falta la lista \"resultados\"');\n  resultados = obj.resultados\n    .filter(x => x && Number.isFinite(Number(x.orden_id)) && Number.isFinite(Number(x.puntaje)))\n    .map(x => ({\n      orden_id: Number(x.orden_id),\n      puntaje: Math.max(0, Math.min(100, Number(x.puntaje))),\n      justificacion: String(x.justificacion || '').slice(0, 300),\n    }));\n  if (resultados.length === 0) throw new Error('lista vacía');\n} catch (e) {\n  error = String(e.message || e);\n  resultados = null;\n}\nreturn [{ json: { valido: resultados !== null, resultados, error } }];\n"
+   },
+   "id": "1bb86c51-ce54-45b9-90a5-6db543cf56d4",
+   "name": "Validar respuesta",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1440,
+    -80
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict"
+     },
+     "conditions": [
+      {
+       "id": "bfbd014f-9a4e-404b-995b-27a9ff4dabc9",
+       "leftValue": "={{ $json.valido }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "c53d5584-2c79-47a3-be09-b08237d03c2f",
+   "name": "¿Respuesta válida?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1680,
+    -80
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.vortic_api }}/motor/prioridades/",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "options": {
+     "timeout": 60000
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ resultados: $json.resultados }) }}"
+   },
+   "id": "978ff122-d8aa-438c-a452-a74d3b62c39d",
+   "name": "Guardar prioridades",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1920,
+    -160
+   ],
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "vorticMotorToken",
+     "name": "Vortic - token del motor"
+    }
+   }
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $('Configuración').first().json.vortic_api }}/motor/respaldo/",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "options": {
+     "timeout": 60000
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={}"
+   },
+   "id": "da4e5dc7-994f-42c8-a452-d3a7016f4977",
+   "name": "Aplicar regla de respaldo",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1920,
+    120
+   ],
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "vorticMotorToken",
+     "name": "Vortic - token del motor"
+    }
+   }
+  }
+ ],
+ "connections": {
+  "Aviso de Vortic": {
+   "main": [
+    [
+     {
+      "node": "Configuración",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Todos los días 7:30": {
+   "main": [
+    [
+     {
+      "node": "Configuración",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Configuración": {
+   "main": [
+    [
+     {
+      "node": "Traer órdenes activas",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Traer órdenes activas": {
+   "main": [
+    [
+     {
+      "node": "¿Hay órdenes activas?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Hay órdenes activas?": {
+   "main": [
+    [
+     {
+      "node": "Armar pedido a la IA",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    []
+   ]
+  },
+  "Armar pedido a la IA": {
+   "main": [
+    [
+     {
+      "node": "Consultar modelo de IA",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Consultar modelo de IA": {
+   "main": [
+    [
+     {
+      "node": "Validar respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Aplicar regla de respaldo",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Validar respuesta": {
+   "main": [
+    [
+     {
+      "node": "¿Respuesta válida?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "¿Respuesta válida?": {
+   "main": [
+    [
+     {
+      "node": "Guardar prioridades",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Aplicar regla de respaldo",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "active": false,
+ "settings": {
+  "executionOrder": "v1",
+  "timezone": "America/Argentina/Cordoba"
+ },
+ "pinData": {}
+}
