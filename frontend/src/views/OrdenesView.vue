@@ -4,11 +4,17 @@
 // sugerida) en una sola vista: el listado viene ordenado por
 // indice_prioridad (default del ViewSet) y desde acá se da de alta
 // cliente + orden.
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '../api/client'
+import BuscadorCombobox from '../components/BuscadorCombobox.vue'
 import { useAuthStore } from '../stores/auth'
+import { etiquetaEstado } from '../utils/estados'
+import IconSparkle from '~icons/material-symbols/auto-awesome'
+import IconAdd from '~icons/material-symbols/add'
+import IconClose from '~icons/material-symbols/close'
 
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
@@ -30,22 +36,52 @@ interface OrdenListado {
   indice_prioridad: number | null
   justificacion_prioridad: string
   prioridad_origen: '' | 'ia' | 'respaldo'
+  prioridad_actualizada: string | null
 }
 
 const ordenes = ref<OrdenListado[]>([])
-const filtroEstado = ref('')
+// El filtro vive en la URL (?estado=) para que sobreviva al ir y volver
+// del detalle, al refrescar y a compartir el enlace con otro usuario.
+const estadoQuery = typeof route.query.estado === 'string' ? route.query.estado : ''
+const filtroEstado = ref(estadoQuery)
 const cargando = ref(false)
 const mostrarForm = ref(false)
 const guardando = ref(false)
 const errorForm = ref('')
 
+// Estado del listado: error de red visible (antes se tragaba en un catch
+// vacío), momento de la última actualización aplicada, y cambios que llegaron
+// por el refresco automático pero todavía no se muestran para no re-ordenar
+// la lista debajo del cursor.
+const errorCarga = ref('')
+const actualizadoEn = ref<Date | null>(null)
+const cambiosPendientes = ref<OrdenListado[] | null>(null)
+const mensajeExito = ref('')
+let timerExito: ReturnType<typeof setTimeout> | undefined
+let firmaActual = ''
+
+// Órdenes creadas en esta sesión que todavía no tienen índice: mientras el
+// motor responde, "Sin estimación" mentiría (parece un dato faltante cargado
+// por el usuario). Se muestran como "Calculando prioridad…" y se refresca el
+// listado completo en tandas cortas, porque al priorizar una orden nueva el
+// motor también puede mover a las demás.
+const recienCreadas = ref<number[]>([])
+const VENTANA_CALCULO_MS = 45000
+let timersPostAlta: ReturnType<typeof setTimeout>[] = []
+
 // HU-02: buscador de cliente existente (en vez de un <select> con todos
 // los clientes) — a medida que se escribe, sugiere coincidencias por
 // razón social o teléfono; si no existe, se puede cargar uno nuevo.
-const busquedaCliente = ref('')
-const sugerenciasCliente = ref<Cliente[]>([])
 const clienteSeleccionado = ref<Cliente | null>(null)
-let debounceCliente: ReturnType<typeof setTimeout> | undefined
+const buscadorCliente = ref<{ limpiar: () => void } | null>(null)
+
+async function cargarClientes(q: string): Promise<Cliente[]> {
+  const { data } = await api.get('/clientes/', { params: { search: q } })
+  return data
+}
+
+const etiquetaCliente = (c: Cliente) => `${c.razon_social} (${c.telefono})`
+const claveCliente = (c: Cliente) => c.id
 
 const mostrarNuevoCliente = ref(false)
 const nuevoCliente = ref({
@@ -67,49 +103,136 @@ const nuevaOrden = ref({
   criticidad: 2, // criticidad DEL TRABAJO, no del cliente
 })
 
-async function cargarOrdenes() {
-  cargando.value = true
+function firmaDe(list: OrdenListado[]) {
+  return list
+    .map(o => `${o.id}:${o.estado}:${o.indice_prioridad ?? '-'}:${o.prioridad_origen}`)
+    .join('|')
+}
+
+async function cargarOrdenes(silencioso = false, aplicarDirecto = false) {
+  if (!silencioso) cargando.value = true
   try {
     const params = filtroEstado.value ? { estado: filtroEstado.value } : {}
     const { data } = await api.get('/ordenes/', { params })
+    errorCarga.value = ''
+    limpiarRecienCreadas(data)
+    if (silencioso) {
+      // El refresco automático NO pisa la lista: si el orden cambió, se
+      // avisa y el usuario decide cuándo aplicarlo. La excepción es la
+      // ventana posterior a un alta, donde el reorden es lo que el usuario
+      // está esperando y se aplica sin preguntar.
+      if (aplicarDirecto) {
+        ordenes.value = data
+        firmaActual = firmaDe(data)
+        cambiosPendientes.value = null
+        actualizadoEn.value = new Date()
+        return
+      }
+      if (firmaActual && firmaDe(data) !== firmaActual) {
+        cambiosPendientes.value = data
+      }
+      return
+    }
     ordenes.value = data
+    firmaActual = firmaDe(data)
+    cambiosPendientes.value = null
+    actualizadoEn.value = new Date()
   } catch {
     // Si el token venció y el refresh también falla, el interceptor de
-    // api/client.ts ya redirige al login — acá solo evitamos que la
-    // pantalla se quede en "Cargando…" para siempre por un error de red.
+    // api/client.ts ya redirige al login. Acá solo evitamos quedarnos en
+    // "Cargando…" para siempre y damos una salida visible.
+    if (!silencioso) {
+      errorCarga.value = ordenes.value.length
+        ? 'No se pudo actualizar el listado. Mostrando los datos de la última carga.'
+        : 'No se pudo cargar el listado de órdenes.'
+    }
   } finally {
-    cargando.value = false
+    if (!silencioso) cargando.value = false
   }
 }
 
-// Guarda de "respuesta obsoleta": si el usuario sigue tipeando, una
-// búsqueda vieja que tarda más puede resolver DESPUÉS de una más nueva y
-// pisarle el resultado con sugerencias de un texto que ya no está en el
-// input. Cada búsqueda lleva un número de secuencia y solo se aplica si
-// sigue siendo la más reciente cuando responde.
-let secuenciaBusquedaCliente = 0
+// Una orden deja de estar "calculando" cuando el listado ya trae su índice.
+function limpiarRecienCreadas(list: OrdenListado[]) {
+  if (!recienCreadas.value.length) return
+  recienCreadas.value = recienCreadas.value.filter((id) => {
+    const orden = list.find(o => o.id === id)
+    return !orden || orden.indice_prioridad == null
+  })
+}
 
-function onBuscarClienteInput() {
-  clienteSeleccionado.value = null
-  clearTimeout(debounceCliente)
-  const q = busquedaCliente.value.trim()
-  if (q.length < 2) {
-    sugerenciasCliente.value = []
-    return
-  }
-  const idBusqueda = ++secuenciaBusquedaCliente
-  debounceCliente = setTimeout(async () => {
-    const { data } = await api.get('/clientes/', { params: { search: q } })
-    if (idBusqueda === secuenciaBusquedaCliente) {
-      sugerenciasCliente.value = data
-    }
-  }, 250)
+// Tandas cortas después del alta: el motor responde en segundos y al
+// recalcular puede mover también otras órdenes, así que se pide el listado
+// completo (no una sola orden) y se aplica sin pedir confirmación.
+const REFRESCOS_POST_ALTA = [2000, 5000, 10000]
+
+function programarRefrescosPostAlta() {
+  timersPostAlta.forEach(clearTimeout)
+  timersPostAlta = REFRESCOS_POST_ALTA.map(ms => setTimeout(async () => {
+    if (document.hidden) return
+    await cargarOrdenes(true, true)
+  }, ms))
+  // Pasada la ventana, lo que siga sin índice vuelve a leerse como
+  // "Sin estimación": ya no es un cálculo en curso sino un dato que falta.
+  timersPostAlta.push(setTimeout(() => {
+    recienCreadas.value = []
+  }, VENTANA_CALCULO_MS))
+}
+
+function aplicarCambios() {
+  if (!cambiosPendientes.value) return
+  ordenes.value = cambiosPendientes.value
+  firmaActual = firmaDe(cambiosPendientes.value)
+  cambiosPendientes.value = null
+  actualizadoEn.value = new Date()
+  limpiarRecienCreadas(ordenes.value)
+}
+
+const horaActualizacion = computed(() =>
+  actualizadoEn.value
+    ? actualizadoEn.value.toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : '',
+)
+
+// "hace 3 h" / "hace 7 días": la antigüedad es un dato de decisión, no una
+// fecha que el jefe tenga que restar mentalmente.
+function hace(fecha: string | null): string {
+  if (!fecha) return 'sin calcular'
+  const minutos = Math.floor((Date.now() - new Date(fecha).getTime()) / 60000)
+  if (minutos < 1) return 'recién'
+  if (minutos < 60) return `hace ${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `hace ${horas} h`
+  const dias = Math.floor(horas / 24)
+  return dias === 1 ? 'hace 1 día' : `hace ${dias} días`
+}
+
+function abrirOrden(id: number, event: Event) {
+  // El código OT es un <router-link> real: si el click viene de ahí (o de
+  // cualquier otro enlace), que lo maneje el enlace y no naveguemos dos veces.
+  if ((event.target as HTMLElement | null)?.closest('a')) return
+  router.push({ name: 'orden-detalle', params: { id } })
 }
 
 function elegirCliente(c: Cliente) {
   clienteSeleccionado.value = c
-  busquedaCliente.value = `${c.razon_social} (${c.telefono})`
-  sugerenciasCliente.value = []
+}
+
+// Un error de DRF llega como `{campo: ["mensaje"]}`. Mostrar el JSON crudo
+// obliga al jefe a interpretar la estructura; acá se extraen los mensajes.
+function mensajeDeError(data: unknown, fallback: string): string {
+  if (!data) return fallback
+  if (typeof data === 'string') return data
+  if (typeof data === 'object') {
+    const mensajes = Object.values(data as Record<string, unknown>)
+      .flat()
+      .filter((v): v is string => typeof v === 'string')
+    if (mensajes.length) return mensajes.join(' ')
+  }
+  return fallback
 }
 
 const creandoCliente = ref(false)
@@ -129,8 +252,10 @@ async function crearCliente() {
     // backend tal cual en vez de un JSON crudo, para que el jefe de
     // taller entienda que probablemente ya existe ese cliente y lo
     // busque en vez de reintentar crear uno nuevo.
-    const detalle = e?.response?.data?.telefono?.[0] ?? e?.response?.data?.razon_social?.[0]
-    errorForm.value = detalle ?? (e?.response?.data ? JSON.stringify(e.response.data) : 'No se pudo crear el cliente.')
+    errorForm.value = mensajeDeError(
+      e?.response?.data,
+      'No se pudo crear el cliente. Revisá los datos e intentá de nuevo.',
+    )
   } finally {
     creandoCliente.value = false
   }
@@ -159,7 +284,7 @@ async function crearOrden() {
     // backend crea el Equipo dentro de la misma transacción) — antes eran
     // dos requests separados y si el segundo fallaba quedaba un Equipo
     // huérfano sin ninguna orden asociada.
-    await api.post('/ordenes/', {
+    const { data: creada } = await api.post('/ordenes/', {
       cliente: clienteSeleccionado.value.id,
       nuevo_tipo_equipo: tipoEquipoFinal,
       descripcion_falla: nuevaOrden.value.descripcion_falla,
@@ -168,20 +293,26 @@ async function crearOrden() {
       criticidad: nuevaOrden.value.criticidad,
     })
 
+    recienCreadas.value = [...recienCreadas.value, creada.id]
     nuevaOrden.value = {
       descripcion_falla: '',
       costo_estimado: null, tiempo_estimado: null, criticidad: 2,
     }
     tipoEquipoSeleccionado.value = ''
     tipoEquipoOtro.value = ''
-    busquedaCliente.value = ''
     clienteSeleccionado.value = null
+    buscadorCliente.value?.limpiar()
     mostrarForm.value = false
+    mensajeExito.value = 'Orden registrada. La prioridad se recalcula en unos segundos.'
+    clearTimeout(timerExito)
+    timerExito = setTimeout(() => { mensajeExito.value = '' }, 6000)
     await cargarOrdenes()
+    programarRefrescosPostAlta()
   } catch (e: any) {
-    errorForm.value = e?.response?.data
-      ? JSON.stringify(e.response.data)
-      : 'No se pudo registrar la orden.'
+    errorForm.value = mensajeDeError(
+      e?.response?.data,
+      'No se pudo registrar la orden. Revisá los datos e intentá de nuevo.',
+    )
   } finally {
     guardando.value = false
   }
@@ -194,90 +325,144 @@ const activas = computed(() => ordenes.value.filter(o => o.estado === 'pendiente
 const bloqueadas = computed(() => ordenes.value.filter(o => o.estado === 'bloqueado'))
 const terminadas = computed(() => ordenes.value.filter(o => o.estado === 'terminado'))
 
-function etiquetaOrigen(o: OrdenListado) {
-  return o.prioridad_origen === 'ia' ? 'IA' : o.prioridad_origen === 'respaldo' ? 'Regla' : ''
+// Momento en que el motor recalculó por última vez el orden de las activas.
+const prioridadActualizada = computed(() => {
+  const fechas = activas.value
+    .map(o => o.prioridad_actualizada)
+    .filter((f): f is string => !!f)
+  if (!fechas.length) return ''
+  const ultima = fechas.reduce((a, b) => (new Date(a) > new Date(b) ? a : b))
+  return `recalculada ${hace(ultima)}`
+})
+
+// Una orden recién creada sin índice todavía está esperando al motor, no
+// "sin estimación" (eso es un dato que el usuario no cargó).
+function estaCalculando(o: OrdenListado) {
+  return o.indice_prioridad == null && recienCreadas.value.includes(o.id)
 }
+
+// Con IA se marca con una estrella junto al puntaje; la regla de respaldo no
+// lleva chip: su ausencia es la señal, y el detalle lo dice con palabras.
 
 // La IA responde unos segundos después de cada cambio: se refresca el
 // listado cada 30 segundos para que el nuevo orden aparezca solo.
+watch(filtroEstado, (estado) => {
+  router.replace({ query: estado ? { estado } : {} })
+  cargarOrdenes()
+})
+
+// La IA responde unos segundos después de cada cambio: se consulta cada 30
+// segundos, pero sin re-ordenar la pantalla por debajo del usuario.
 let refresco: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   cargarOrdenes()
-  refresco = setInterval(() => { if (!mostrarForm.value) cargarOrdenes() }, 30000)
+  refresco = setInterval(() => {
+    if (mostrarForm.value || document.hidden) return
+    cargarOrdenes(true)
+  }, 30000)
 })
-onUnmounted(() => clearInterval(refresco))
+onUnmounted(() => {
+  clearInterval(refresco)
+  clearTimeout(timerExito)
+  timersPostAlta.forEach(clearTimeout)
+})
 </script>
 
 <template>
   <div class="page">
     <div class="page-header">
       <h2>Órdenes de trabajo</h2>
-      <button v-if="auth.esJefe" @click="mostrarForm = !mostrarForm">
-        {{ mostrarForm ? 'Cancelar' : '+ Nueva orden' }}
+      <button
+        v-if="auth.esJefe"
+        class="btn-icono"
+        :class="{ 'boton-secundario': mostrarForm }"
+        @click="mostrarForm = !mostrarForm"
+      >
+        <IconClose v-if="mostrarForm" aria-hidden="true" />
+        <IconAdd v-else aria-hidden="true" />
+        {{ mostrarForm ? 'Cancelar' : 'Nueva orden' }}
       </button>
     </div>
 
     <form v-if="mostrarForm && auth.esJefe" class="nueva-orden" @submit.prevent="crearOrden">
       <div class="cliente-picker">
-        <input
-          v-model="busquedaCliente"
+        <BuscadorCombobox
+          ref="buscadorCliente"
+          v-model="clienteSeleccionado"
+          class="combo-cliente"
+          :cargar="cargarClientes"
+          :etiqueta="etiquetaCliente"
+          :clave="claveCliente"
+          etiqueta-accesible="Buscar cliente por nombre o teléfono"
           placeholder="Buscar cliente por nombre o teléfono…"
-          @input="onBuscarClienteInput"
+          name="cliente"
+          mensaje-error="No se pudo buscar clientes. Reintentá escribiendo de nuevo."
         />
-        <ul v-if="sugerenciasCliente.length" class="sugerencias">
-          <li v-for="c in sugerenciasCliente" :key="c.id" @click="elegirCliente(c)">
-            {{ c.razon_social }} — {{ c.telefono }}
-          </li>
-        </ul>
         <button type="button" class="link-btn" @click="mostrarNuevoCliente = !mostrarNuevoCliente">
-          {{ mostrarNuevoCliente ? 'cancelar' : '+ nuevo cliente' }}
+          {{ mostrarNuevoCliente ? 'Cancelar' : '+ Nuevo cliente' }}
         </button>
       </div>
 
       <div v-if="mostrarNuevoCliente" class="nuevo-cliente">
-        <input v-model="nuevoCliente.razon_social" placeholder="Razón social / nombre" />
-        <input v-model="nuevoCliente.telefono" placeholder="Teléfono (para WhatsApp)" />
+        <input v-model="nuevoCliente.razon_social" aria-label="Razón social o nombre del cliente" placeholder="Razón social / nombre" />
+        <input v-model="nuevoCliente.telefono" aria-label="Teléfono del cliente" placeholder="Teléfono (para WhatsApp)" />
         <button type="button" :disabled="creandoCliente" @click="crearCliente">
           {{ creandoCliente ? 'Guardando…' : 'Guardar cliente' }}
         </button>
       </div>
 
-      <select v-model="tipoEquipoSeleccionado" required>
-        <option value="" disabled>Tipo de equipo…</option>
-        <option v-for="t in TIPOS_EQUIPO" :key="t" :value="t">{{ t }}</option>
-        <option :value="OTRO_VALOR">Otro (especificar)</option>
-      </select>
-      <input
-        v-if="tipoEquipoSeleccionado === OTRO_VALOR"
-        v-model="tipoEquipoOtro"
-        placeholder="¿Cuál tipo de equipo?"
-        required
-      />
-      <input v-model="nuevaOrden.descripcion_falla" placeholder="Descripción del problema" required />
-      <input v-model.number="nuevaOrden.costo_estimado" type="number" min="0" placeholder="Costo estimado" />
-      <input
-        v-model.number="nuevaOrden.tiempo_estimado"
-        type="number"
-        min="0.1"
-        step="0.5"
-        placeholder="Tiempo estimado (hs, mínimo 0,1)"
-      />
-      <select v-model.number="nuevaOrden.criticidad">
-        <option :value="1">Criticidad del trabajo: puede esperar</option>
-        <option :value="2">Criticidad del trabajo: normal</option>
-        <option :value="3">Criticidad del trabajo: normal-alta</option>
-        <option :value="4">Criticidad del trabajo: urgente</option>
-        <option :value="5">Criticidad del trabajo: muy urgente</option>
-      </select>
+      <label class="campo">
+        <span>Tipo de equipo</span>
+        <select v-model="tipoEquipoSeleccionado" required>
+          <option value="" disabled>Elegí un tipo</option>
+          <option v-for="t in TIPOS_EQUIPO" :key="t" :value="t">{{ t }}</option>
+          <option :value="OTRO_VALOR">Otro (especificar)</option>
+        </select>
+      </label>
+      <label v-if="tipoEquipoSeleccionado === OTRO_VALOR" class="campo">
+        <span>¿Cuál?</span>
+        <input v-model="tipoEquipoOtro" placeholder="Ej.: enfriador de aceite" required />
+      </label>
+      <label class="campo campo-ancho">
+        <span>Descripción del problema</span>
+        <input v-model="nuevaOrden.descripcion_falla" placeholder="Qué falla y qué se observó" required />
+      </label>
+      <label class="campo">
+        <span>Costo estimado (opcional)</span>
+        <input v-model.number="nuevaOrden.costo_estimado" type="number" min="0" placeholder="Ej.: 150000" />
+      </label>
+      <label class="campo">
+        <span>Tiempo estimado en horas (opcional)</span>
+        <input
+          v-model.number="nuevaOrden.tiempo_estimado"
+          type="number"
+          min="0.1"
+          step="0.1"
+          placeholder="Ej.: 2.5"
+        />
+      </label>
+      <p class="hint-estimacion campo-ancho">
+        Sin costo y tiempo estimado, la orden no entra en el orden sugerido.
+      </p>
+      <label class="campo campo-ancho">
+        <span>Criticidad del trabajo</span>
+        <select v-model.number="nuevaOrden.criticidad">
+          <option :value="1">Puede esperar</option>
+          <option :value="2">Normal</option>
+          <option :value="3">Normal-alta</option>
+          <option :value="4">Urgente</option>
+          <option :value="5">Muy urgente</option>
+        </select>
+      </label>
 
-      <p v-if="errorForm" class="error">{{ errorForm }}</p>
+      <p v-if="errorForm" class="error" role="alert">{{ errorForm }}</p>
       <button type="submit" :disabled="guardando">{{ guardando ? 'Guardando…' : 'Registrar' }}</button>
     </form>
 
     <div class="filtros">
       <label>
         Estado:
-        <select v-model="filtroEstado" @change="cargarOrdenes">
+        <select v-model="filtroEstado">
           <option value="">Todos</option>
           <option value="pendiente">Pendiente</option>
           <option value="en_curso">En curso</option>
@@ -285,47 +470,98 @@ onUnmounted(() => clearInterval(refresco))
           <option value="terminado">Terminado</option>
         </select>
       </label>
+      <span v-if="horaActualizacion" class="actualizado">
+        Listado {{ horaActualizacion }}<template v-if="prioridadActualizada"> · prioridad {{ prioridadActualizada }}</template>
+      </span>
     </div>
 
-    <p v-if="cargando && ordenes.length === 0">Cargando…</p>
+    <div v-if="mensajeExito" class="aviso aviso-exito" role="status">
+      {{ mensajeExito }}
+    </div>
 
-    <template v-else-if="!filtroEstado">
+    <div v-if="errorCarga" class="aviso aviso-error" role="alert">
+      {{ errorCarga }}
+      <button type="button" class="link-btn reintentar" @click="cargarOrdenes()">Reintentar</button>
+    </div>
+
+    <div v-if="cambiosPendientes" class="aviso aviso-cambio" role="status">
+      El orden de prioridad cambió.
+      <button type="button" class="link-btn" @click="aplicarCambios">Actualizar listado</button>
+    </div>
+
+    <p v-if="cargando && ordenes.length === 0 && !errorCarga" role="status" aria-live="polite">Cargando órdenes…</p>
+
+    <template v-else-if="!filtroEstado && (!errorCarga || ordenes.length)">
       <h3 class="grupo">Activas, en orden de prioridad sugerida</h3>
-      <table>
+      <table class="tabla-ordenes">
+        <caption class="sr-only">Órdenes activas en el orden de prioridad sugerido</caption>
         <thead>
-          <tr><th>#</th><th>Orden</th><th>Cliente</th><th>Equipo</th><th>Estado</th><th>Prioridad</th></tr>
+          <tr><th scope="col" class="col-rango">#</th><th scope="col" class="col-orden">Orden</th><th scope="col">Cliente</th><th scope="col" class="col-edad">Ingresó</th><th scope="col" class="col-equipo">Equipo</th><th scope="col" class="col-estado">Estado</th><th scope="col" class="col-prioridad">Prioridad</th></tr>
         </thead>
         <tbody>
           <template v-for="(o, i) in activas" :key="o.id">
-            <tr class="fila-orden" @click="router.push({ name: 'orden-detalle', params: { id: o.id } })">
-              <td>{{ i + 1 }}</td>
-              <td>OT-{{ String(o.id).padStart(4, '0') }}</td>
-              <td>{{ o.cliente_nombre }}</td>
-              <td>{{ o.tipo_equipo ?? '-' }}</td>
-              <td><span class="badge" :class="`badge-${o.estado}`">{{ o.estado }}</span></td>
-              <td>
-                {{ o.indice_prioridad != null ? Math.round(o.indice_prioridad) : '-' }}
-                <span v-if="etiquetaOrigen(o)" class="origen">{{ etiquetaOrigen(o) }}</span>
+            <tr class="fila-orden" @click="abrirOrden(o.id, $event)">
+              <td class="rango td-rango">{{ i + 1 }}</td>
+              <td class="td-orden">
+                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
+                  OT-{{ String(o.id).padStart(4, '0') }}
+                </router-link>
+              </td>
+              <td class="td-cliente">
+                <span class="cliente-nombre" :title="o.cliente_nombre">{{ o.cliente_nombre }}</span>
+                <span class="fila-meta">
+                  <span class="badge" :class="`badge-${o.estado}`">{{ etiquetaEstado(o.estado) }}</span>
+                  <span class="edad">{{ hace(o.fecha_ingreso) }}</span>
+                </span>
+              </td>
+              <td class="edad col-edad">{{ hace(o.fecha_ingreso) }}</td>
+              <td class="col-equipo" :title="o.tipo_equipo ?? ''">{{ o.tipo_equipo ?? '-' }}</td>
+              <td class="col-estado"><span class="badge" :class="`badge-${o.estado}`">{{ etiquetaEstado(o.estado) }}</span></td>
+              <td class="td-prioridad">
+                <template v-if="o.indice_prioridad != null">
+                  {{ Math.round(o.indice_prioridad) }}<span class="escala">/100</span>
+                  <span v-if="o.prioridad_origen === 'ia'" class="origen-ia" title="Prioridad sugerida por IA">
+                    <IconSparkle aria-hidden="true" />
+                    <span class="sr-only">Prioridad sugerida por IA</span>
+                  </span>
+                </template>
+              <span v-else-if="estaCalculando(o)" class="chip-calculando">Calculando prioridad…</span>
+              <span v-else class="chip-sin-estimacion">Sin estimación</span>
               </td>
             </tr>
             <tr v-if="o.justificacion_prioridad" class="fila-justificacion">
               <td></td>
-              <td colspan="5">{{ o.justificacion_prioridad }}</td>
+              <td colspan="6">
+                <span class="sr-only">Justificación de la prioridad: </span>
+                {{ o.justificacion_prioridad }}
+              </td>
             </tr>
           </template>
-          <tr v-if="activas.length === 0"><td colspan="6">No hay órdenes activas.</td></tr>
+          <tr v-if="activas.length === 0">
+            <td colspan="7">
+              No hay órdenes activas.
+              <template v-if="auth.esJefe"> Registrá una con «Nueva orden».</template>
+              <template v-else> Cuando el jefe registre una, va a aparecer acá.</template>
+            </td>
+          </tr>
         </tbody>
       </table>
 
       <template v-if="bloqueadas.length">
         <h3 class="grupo">Bloqueadas</h3>
-        <table>
-          <thead><tr><th>Orden</th><th>Cliente</th><th>Equipo</th><th>Motivo</th></tr></thead>
+        <table class="tabla-secundaria tabla-bloqueadas">
+          <caption class="sr-only">Órdenes bloqueadas y su motivo</caption>
+          <thead><tr><th scope="col">Orden</th><th scope="col">Cliente</th><th scope="col" class="col-edad">Ingresó</th><th scope="col" class="col-equipo">Equipo</th><th scope="col">Motivo</th></tr></thead>
           <tbody>
-            <tr v-for="o in bloqueadas" :key="o.id" class="fila-orden" @click="router.push({ name: 'orden-detalle', params: { id: o.id } })">
-              <td>OT-{{ String(o.id).padStart(4, '0') }}</td>
+            <tr v-for="o in bloqueadas" :key="o.id" class="fila-orden" @click="abrirOrden(o.id, $event)">
+              <td>
+                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
+                  OT-{{ String(o.id).padStart(4, '0') }}
+                </router-link>
+              </td>
               <td>{{ o.cliente_nombre }}</td>
-              <td>{{ o.tipo_equipo ?? '-' }}</td>
+              <td class="edad col-edad">{{ hace(o.fecha_ingreso) }}</td>
+              <td class="col-equipo" :title="o.tipo_equipo ?? ''">{{ o.tipo_equipo ?? '-' }}</td>
               <td class="motivo">{{ o.motivo_bloqueo }}</td>
             </tr>
           </tbody>
@@ -334,34 +570,77 @@ onUnmounted(() => clearInterval(refresco))
 
       <details v-if="terminadas.length" class="terminadas">
         <summary>Terminadas ({{ terminadas.length }})</summary>
-        <table>
+        <table class="tabla-secundaria tabla-terminadas">
+          <caption class="sr-only">Órdenes terminadas</caption>
+          <thead><tr><th scope="col">Orden</th><th scope="col">Cliente</th><th scope="col">Equipo</th></tr></thead>
           <tbody>
-            <tr v-for="o in terminadas" :key="o.id" class="fila-orden" @click="router.push({ name: 'orden-detalle', params: { id: o.id } })">
-              <td>OT-{{ String(o.id).padStart(4, '0') }}</td>
+            <tr v-for="o in terminadas" :key="o.id" class="fila-orden" @click="abrirOrden(o.id, $event)">
+              <td>
+                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
+                  OT-{{ String(o.id).padStart(4, '0') }}
+                </router-link>
+              </td>
               <td>{{ o.cliente_nombre }}</td>
-              <td>{{ o.tipo_equipo ?? '-' }}</td>
+              <td class="col-equipo" :title="o.tipo_equipo ?? ''">{{ o.tipo_equipo ?? '-' }}</td>
             </tr>
           </tbody>
         </table>
       </details>
     </template>
 
-    <table v-else>
+    <table v-else-if="!errorCarga || ordenes.length" class="tabla-ordenes">
+      <caption class="sr-only">Órdenes filtradas por estado</caption>
       <thead>
-        <tr><th>Orden</th><th>Cliente</th><th>Equipo</th><th>Estado</th><th>Prioridad</th></tr>
+        <tr><th scope="col" class="col-rango">#</th><th scope="col" class="col-orden">Orden</th><th scope="col">Cliente</th><th scope="col" class="col-edad">Ingresó</th><th scope="col" class="col-equipo">Equipo</th><th scope="col" class="col-estado">Estado</th><th scope="col" class="col-prioridad">Prioridad</th></tr>
       </thead>
       <tbody>
-        <tr v-for="o in ordenes" :key="o.id" class="fila-orden" @click="router.push({ name: 'orden-detalle', params: { id: o.id } })">
-          <td>OT-{{ String(o.id).padStart(4, '0') }}</td>
-          <td>{{ o.cliente_nombre }}</td>
-          <td>{{ o.tipo_equipo ?? '-' }}</td>
-          <td>
-            <span class="badge" :class="`badge-${o.estado}`">{{ o.estado }}</span>
-            <span v-if="o.motivo_bloqueo" class="motivo"> · {{ o.motivo_bloqueo }}</span>
+        <template v-for="(o, i) in ordenes" :key="o.id">
+          <tr class="fila-orden" @click="abrirOrden(o.id, $event)">
+            <td class="rango td-rango">{{ i + 1 }}</td>
+            <td class="td-orden">
+              <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
+                OT-{{ String(o.id).padStart(4, '0') }}
+              </router-link>
+            </td>
+            <td class="td-cliente">
+              <span class="cliente-nombre" :title="o.cliente_nombre">{{ o.cliente_nombre }}</span>
+              <span class="fila-meta">
+                <span class="badge" :class="`badge-${o.estado}`">{{ etiquetaEstado(o.estado) }}</span>
+                <span class="edad">{{ hace(o.fecha_ingreso) }}</span>
+              </span>
+            </td>
+            <td class="edad col-edad">{{ hace(o.fecha_ingreso) }}</td>
+            <td class="col-equipo" :title="o.tipo_equipo ?? ''">{{ o.tipo_equipo ?? '-' }}</td>
+            <td class="col-estado">
+              <span class="badge" :class="`badge-${o.estado}`">{{ etiquetaEstado(o.estado) }}</span>
+              <span v-if="o.motivo_bloqueo" class="motivo"> · {{ o.motivo_bloqueo }}</span>
+            </td>
+            <td class="td-prioridad">
+              <template v-if="o.indice_prioridad != null">
+                {{ Math.round(o.indice_prioridad) }}<span class="escala">/100</span>
+                <span v-if="o.prioridad_origen === 'ia'" class="origen-ia" title="Prioridad sugerida por IA">
+                  <IconSparkle aria-hidden="true" />
+                  <span class="sr-only">Prioridad sugerida por IA</span>
+                </span>
+              </template>
+              <span v-else-if="estaCalculando(o)" class="chip-calculando">Calculando prioridad…</span>
+              <span v-else class="chip-sin-estimacion">Sin estimación</span>
+            </td>
+          </tr>
+          <tr v-if="o.justificacion_prioridad" class="fila-justificacion">
+            <td></td>
+            <td colspan="6">
+              <span class="sr-only">Justificación de la prioridad: </span>
+              {{ o.justificacion_prioridad }}
+            </td>
+          </tr>
+        </template>
+        <tr v-if="ordenes.length === 0">
+          <td colspan="7">
+            No hay órdenes con ese estado.
+            <button type="button" class="link-btn" @click="filtroEstado = ''">Ver todas</button>
           </td>
-          <td>{{ o.indice_prioridad != null ? Math.round(o.indice_prioridad) : '-' }}</td>
         </tr>
-        <tr v-if="ordenes.length === 0"><td colspan="5">No hay órdenes con ese estado.</td></tr>
       </tbody>
     </table>
   </div>
@@ -388,6 +667,48 @@ onUnmounted(() => clearInterval(refresco))
   border-radius: 8px;
   margin-bottom: 1rem;
 }
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+.campo-ancho {
+  grid-column: 1 / -1;
+}
+.campo input,
+.campo select {
+  font-weight: 400;
+  color: #0f172a;
+}
+.hint-estimacion {
+  margin: -0.25rem 0 0;
+  color: #b45309;
+  font-size: 0.8rem;
+}
+.escala {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.chip-sin-estimacion {
+  color: #b45309;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+/* Neutro a propósito: esperar al motor no es un dato faltante ni un error. */
+.chip-calculando {
+  color: #64748b;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
 .cliente-picker {
   grid-column: 1 / -1;
   position: relative;
@@ -395,33 +716,9 @@ onUnmounted(() => clearInterval(refresco))
   gap: 0.5rem;
   align-items: center;
 }
-.cliente-picker input {
+.combo-cliente {
   flex: 1;
-}
-.sugerencias {
-  position: absolute;
-  z-index: 10;
-  top: 100%;
-  left: 0;
-  right: 6.5rem;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  max-height: 200px;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-.sugerencias li {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.sugerencias li:hover {
-  background: #f1f5f9;
+  min-width: 0;
 }
 .link-btn {
   background: none;
@@ -429,6 +726,12 @@ onUnmounted(() => clearInterval(refresco))
   text-decoration: underline;
   padding: 0.2rem 0.4rem;
   font-size: 0.8rem;
+}
+.reintentar {
+  background: #0f172a;
+  color: white;
+  text-decoration: none;
+  padding: 0.35rem 0.75rem;
 }
 .nuevo-cliente {
   grid-column: 1 / -1;
@@ -440,8 +743,36 @@ onUnmounted(() => clearInterval(refresco))
   border-radius: 6px;
 }
 .filtros {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   margin-bottom: 1rem;
   font-size: 0.85rem;
+}
+.actualizado {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+.aviso-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.aviso-cambio {
+  background: #f1f5f9;
+  color: #334155;
+}
+.aviso-exito {
+  background: #dcfce7;
+  color: #166534;
 }
 .motivo {
   color: #991b1b;
@@ -450,20 +781,50 @@ onUnmounted(() => clearInterval(refresco))
 .fila-orden {
   cursor: pointer;
 }
-.fila-orden:hover {
+.fila-orden:hover,
+.fila-orden:focus-within {
   background: #f1f5f9;
+}
+.rango {
+  font-variant-numeric: tabular-nums;
+  color: #475569;
+}
+.orden-link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  /* Un código OT es un solo token: se dicta y se escribe a mano, así que no
+     puede partirse en "OT-" / "0001". */
+  white-space: nowrap;
+}
+.orden-link:hover {
+  text-decoration: underline;
+}
+.orden-link:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 .grupo {
   font-size: 0.95rem;
   margin: 1.25rem 0 0.5rem;
 }
-.origen {
-  font-size: 0.7rem;
-  border: 1px solid #94a3b8;
-  border-radius: 4px;
-  padding: 0 0.3rem;
-  margin-left: 0.3rem;
+.edad {
   color: #475569;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.origen-ia {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.25rem;
+  vertical-align: -0.15em;
+  color: #475569;
+}
+.origen-ia svg {
+  width: 0.9em;
+  height: 0.9em;
+  display: block;
 }
 .fila-justificacion td {
   font-size: 0.8rem;
@@ -475,10 +836,197 @@ onUnmounted(() => clearInterval(refresco))
   margin-top: 1.25rem;
   font-size: 0.9rem;
 }
+
+/* Anchos fijos: el código OT y el puntaje no cambian de lugar entre filas, y
+   los textos largos (cliente, equipo, motivo) recortan con elipsis en vez de
+   romper el ritmo de columnas. */
+.tabla-ordenes,
+.tabla-secundaria {
+  table-layout: fixed;
+}
+.tabla-ordenes .col-rango {
+  width: 2rem;
+}
+.tabla-ordenes .col-orden {
+  width: 6rem;
+}
+.tabla-ordenes .col-edad {
+  width: 5.5rem;
+}
+.tabla-ordenes .col-equipo {
+  width: 8rem;
+}
+.tabla-ordenes .col-estado {
+  width: 7rem;
+}
+.tabla-ordenes .col-prioridad {
+  width: 6rem;
+}
+.tabla-ordenes .col-equipo,
+.tabla-ordenes .td-cliente,
+.tabla-bloqueadas td:nth-child(2),
+.tabla-terminadas td:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tabla-secundaria th:first-child,
+.tabla-secundaria td:first-child {
+  width: 6rem;
+}
+.tabla-bloqueadas .col-edad {
+  width: 5.5rem;
+}
+.tabla-bloqueadas .col-equipo,
+.tabla-terminadas .col-equipo {
+  width: 8rem;
+}
+.cliente-nombre {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .error {
   grid-column: 1 / -1;
   color: #991b1b;
   font-size: 0.85rem;
   margin: 0;
+}
+
+/* En escritorio el estado y la antigüedad tienen su propia columna; en el
+   celular viajan debajo del cliente para no perderlos al colapsar la tabla. */
+.fila-meta {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .page {
+    margin: 1rem auto;
+  }
+  .page-header {
+    gap: 0.5rem;
+  }
+  .nueva-orden,
+  .nuevo-cliente {
+    grid-template-columns: 1fr;
+  }
+  .cliente-picker {
+    flex-wrap: wrap;
+  }
+  .combo-cliente {
+    flex-basis: 100%;
+  }
+  .terminadas summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .filtros {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* La tabla prioriza rank, orden, cliente y puntaje: lo demás se lee en el
+     detalle o en la línea de metadatos. */
+  .col-equipo,
+  .col-estado,
+  .col-edad {
+    display: none;
+  }
+  table th,
+  table td {
+    padding: 0.6rem 0.4rem;
+  }
+
+  /* En el celular la tabla se lee como una lista: cada orden es una tarjeta
+     de tres líneas —rango/OT/puntaje, cliente, estado/antigüedad/origen— en
+     vez de siete columnas comprimidas. */
+  .tabla-ordenes,
+  .tabla-ordenes tbody {
+    display: block;
+  }
+  .tabla-ordenes thead {
+    display: none;
+  }
+  .tabla-ordenes tr.fila-orden {
+    display: grid;
+    grid-template-columns: 1.25rem 1fr auto;
+    grid-template-areas:
+      "rango orden prioridad"
+      "cliente cliente cliente"
+      "meta meta meta";
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0;
+    padding: 0.4rem;
+    line-height: 1.35;
+    border-top: 1px solid #e2e8f0;
+  }
+  .tabla-ordenes tr.fila-orden:hover,
+  .tabla-ordenes tr.fila-orden:focus-within {
+    background: #f1f5f9;
+  }
+  .tabla-ordenes tr.fila-orden td {
+    padding: 0;
+    border: none;
+  }
+  .tabla-ordenes .td-rango {
+    grid-area: rango;
+  }
+  .tabla-ordenes .td-orden {
+    grid-area: orden;
+  }
+  .tabla-ordenes .td-prioridad {
+    grid-area: prioridad;
+    text-align: right;
+  }
+  .tabla-ordenes .td-cliente {
+    display: contents;
+  }
+  .tabla-ordenes tr.fila-justificacion {
+    display: block;
+    padding: 0 0.4rem 0.6rem;
+    border: none;
+  }
+  .tabla-ordenes tr.fila-justificacion td {
+    display: block;
+    padding: 0;
+    border: none;
+  }
+  .tabla-ordenes tr.fila-justificacion td:first-child {
+    display: none;
+  }
+  .tabla-ordenes tbody > tr:not(.fila-orden):not(.fila-justificacion) {
+    display: block;
+    padding: 0.75rem 0.4rem;
+    border-top: 1px solid #e2e8f0;
+  }
+  .tabla-ordenes tbody > tr:not(.fila-orden):not(.fila-justificacion) td {
+    display: block;
+    padding: 0;
+    border: none;
+  }
+
+  .fila-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    margin-top: 0;
+    overflow: hidden;
+    grid-area: meta;
+  }
+  .cliente-nombre {
+    grid-area: cliente;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chip-sin-estimacion {
+    display: inline-block;
+    margin-top: 0.2rem;
+  }
 }
 </style>

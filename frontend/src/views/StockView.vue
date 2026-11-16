@@ -3,6 +3,8 @@
 import { ref, onMounted } from 'vue'
 import api from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import IconAdd from '~icons/material-symbols/add'
+import IconClose from '~icons/material-symbols/close'
 
 const auth = useAuthStore()
 
@@ -92,8 +94,15 @@ onMounted(cargar)
   <div class="page">
     <div class="page-header">
       <h2>Stock de repuestos</h2>
-      <button v-if="auth.esJefe" @click="mostrarForm = !mostrarForm">
-        {{ mostrarForm ? 'Cancelar' : '+ Nuevo repuesto' }}
+      <button
+        v-if="auth.esJefe"
+        class="btn-icono"
+        :class="{ 'boton-secundario': mostrarForm }"
+        @click="mostrarForm = !mostrarForm"
+      >
+        <IconClose v-if="mostrarForm" aria-hidden="true" />
+        <IconAdd v-else aria-hidden="true" />
+        {{ mostrarForm ? 'Cancelar' : 'Nuevo repuesto' }}
       </button>
     </div>
 

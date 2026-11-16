@@ -4,8 +4,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api/client'
+import BuscadorCombobox from '../components/BuscadorCombobox.vue'
 import { useAuthStore } from '../stores/auth'
 import { FEATURE_STOCK_PROVEEDORES } from '../config/features'
+import { etiquetaEstado } from '../utils/estados'
+import IconBack from '~icons/material-symbols/arrow-back'
+import IconChat from '~icons/material-symbols/chat'
 
 const auth = useAuthStore()
 
@@ -112,10 +116,8 @@ const errorEstimacion = ref('')
 // (vía /api/repuestos/?search=, que ya trae precios_proveedor anidado) y
 // va mostrando coincidencias a medida que se escribe. El usuario elige
 // de cuál lista comprar; no hay auto-selección del más barato.
-const busquedaRepuesto = ref('')
-const sugerenciasRepuesto = ref<SugerenciaRepuesto[]>([])
 const repuestoSeleccionado = ref<SugerenciaRepuesto | null>(null)
-let debounceHandle: ReturnType<typeof setTimeout> | undefined
+const buscadorRepuesto = ref<{ limpiar: () => void } | null>(null)
 
 const porEncargo = ref(false)
 const descripcionEncargo = ref('')
@@ -157,54 +159,36 @@ async function cargar() {
   }
 }
 
-// Igual que en OrdenesView.vue: una búsqueda vieja no debe pisar el
-// resultado de una más nueva si tarda más en responder.
-let secuenciaBusquedaRepuesto = 0
-
-function onBuscarRepuestoInput() {
-  // Escribir de nuevo invalida lo elegido antes — hay que confirmar la
-  // elección de nuevo si se sigue tipeando.
-  repuestoSeleccionado.value = null
-  clearTimeout(debounceHandle)
-  const q = busquedaRepuesto.value.trim()
-  if (q.length < 2) {
-    sugerenciasRepuesto.value = []
-    return
-  }
-  const idBusqueda = ++secuenciaBusquedaRepuesto
-  debounceHandle = setTimeout(async () => {
-    const { data } = await api.get('/repuestos/', { params: { search: q } })
-    if (idBusqueda !== secuenciaBusquedaRepuesto) return
-    const sugerencias: SugerenciaRepuesto[] = []
-    for (const r of data as Repuesto[]) {
-      if (r.precios_proveedor.length === 0) {
-        sugerencias.push({
-          key: `r${r.id}`,
-          label: `${r.codigo} — ${r.descripcion} · sin proveedor cargado (stock: ${r.cantidad_actual})`,
-          repuestoId: r.id,
-          precioProveedorId: null,
-          stockActual: r.cantidad_actual,
-        })
-      }
-      for (const pp of r.precios_proveedor) {
-        sugerencias.push({
-          key: `pp${pp.id}`,
-          label: `${r.codigo} — ${r.descripcion} · ${pp.proveedor_nombre}: $${pp.precio_costo} (stock: ${r.cantidad_actual})`,
-          repuestoId: r.id,
-          precioProveedorId: pp.id,
-          stockActual: r.cantidad_actual,
-        })
-      }
+// El buscador compartido se encarga del debounce, la guarda de secuencia y
+// el ARIA; acá solo se mapea cada repuesto+proveedor a una fila elegible.
+async function cargarRepuestos(q: string): Promise<SugerenciaRepuesto[]> {
+  const { data } = await api.get('/repuestos/', { params: { search: q } })
+  const sugerencias: SugerenciaRepuesto[] = []
+  for (const r of data as Repuesto[]) {
+    if (r.precios_proveedor.length === 0) {
+      sugerencias.push({
+        key: `r${r.id}`,
+        label: `${r.codigo} — ${r.descripcion} · sin proveedor cargado (stock: ${r.cantidad_actual})`,
+        repuestoId: r.id,
+        precioProveedorId: null,
+        stockActual: r.cantidad_actual,
+      })
     }
-    sugerenciasRepuesto.value = sugerencias
-  }, 250)
+    for (const pp of r.precios_proveedor) {
+      sugerencias.push({
+        key: `pp${pp.id}`,
+        label: `${r.codigo} — ${r.descripcion} · ${pp.proveedor_nombre}: $${pp.precio_costo} (stock: ${r.cantidad_actual})`,
+        repuestoId: r.id,
+        precioProveedorId: pp.id,
+        stockActual: r.cantidad_actual,
+      })
+    }
+  }
+  return sugerencias
 }
 
-function elegirSugerencia(s: SugerenciaRepuesto) {
-  repuestoSeleccionado.value = s
-  busquedaRepuesto.value = s.label
-  sugerenciasRepuesto.value = []
-}
+const etiquetaRepuesto = (s: SugerenciaRepuesto) => s.label
+const claveRepuesto = (s: SugerenciaRepuesto) => s.key
 
 async function cambiarEstado() {
   error.value = ''
@@ -245,8 +229,8 @@ async function agregarRepuesto() {
         }
     const { data } = await api.post(`/ordenes/${ordenId}/registrar_repuesto/`, payload)
     if (data.warning) advertenciaRepuesto.value = data.warning
-    busquedaRepuesto.value = ''
     repuestoSeleccionado.value = null
+    buscadorRepuesto.value?.limpiar()
     descripcionEncargo.value = ''
     porEncargo.value = false
     cantidadRepuesto.value = null
@@ -304,12 +288,23 @@ async function avisarCliente() {
   }
 }
 
+// Volver al listado conservando el filtro (?estado=) con el que se llegó:
+// si hay historial, el back restaura la URL exacta; si se entró por enlace
+// directo, se cae al listado completo.
+function volver() {
+  if (router.options.history.state.back) router.back()
+  else router.push({ name: 'ordenes' })
+}
+
 onMounted(cargar)
 </script>
 
 <template>
   <div class="page" v-if="orden">
-    <button class="volver" @click="router.push({ name: 'ordenes' })">← Volver al listado</button>
+    <button class="volver" @click="volver">
+      <IconBack aria-hidden="true" />
+      Volver al listado
+    </button>
 
     <h2>OT-{{ String(orden.id).padStart(4, '0') }} — {{ orden.cliente_detalle.razon_social }}</h2>
     <p class="subinfo">
@@ -318,151 +313,205 @@ onMounted(cargar)
       · Ingresó {{ new Date(orden.fecha_ingreso).toLocaleString('es-AR') }}
     </p>
     <p class="falla">{{ orden.descripcion_falla }}</p>
+    <p class="meta">
+      <span class="badge" :class="`badge-${orden.estado}`">{{ etiquetaEstado(orden.estado) }}</span>
+      <span>Criticidad <strong>{{ orden.criticidad }}/5</strong></span>
+    </p>
 
-    <div class="grid">
-      <section class="card">
-        <h3>Estado</h3>
-        <p><span class="badge" :class="`badge-${orden.estado}`">{{ orden.estado }}</span></p>
-        <p v-if="orden.motivo_bloqueo" class="motivo">Motivo de bloqueo: {{ orden.motivo_bloqueo }}</p>
-
-        <select v-model="nuevoEstado">
-          <option v-for="e in ESTADOS" :key="e.value" :value="e.value">{{ e.label }}</option>
-        </select>
+    <section class="card accion-estado">
+      <h3>Cambiar estado</h3>
+      <div class="estado-form">
+        <label class="campo-inline estado-select">
+          <span>Nuevo estado</span>
+          <select v-model="nuevoEstado">
+            <option v-for="e in ESTADOS" :key="e.value" :value="e.value">{{ e.label }}</option>
+          </select>
+        </label>
         <input
           v-if="nuevoEstado === 'bloqueado'"
           v-model="motivoBloqueo"
+          aria-label="Motivo de bloqueo"
           placeholder="Motivo de bloqueo (obligatorio)"
         />
         <button :disabled="accionando" @click="cambiarEstado">Guardar estado</button>
-        <p v-if="error" class="error">{{ error }}</p>
+      </div>
+      <p v-if="orden.motivo_bloqueo" class="motivo">Motivo de bloqueo: {{ orden.motivo_bloqueo }}</p>
+      <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-        <button v-if="puedeAvisar" class="whatsapp" :disabled="accionando" @click="avisarCliente">
+      <div v-if="puedeAvisar" class="aviso-cliente">
+        <button class="whatsapp btn-icono" :disabled="accionando" @click="avisarCliente">
+          <IconChat aria-hidden="true" />
           Avisar al cliente por WhatsApp
         </button>
         <p v-if="orden.fecha_aviso_cliente" class="hint">
           Avisado el {{ new Date(orden.fecha_aviso_cliente).toLocaleString('es-AR') }}
         </p>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h3>Prioridad</h3>
+        <p v-if="orden.indice_prioridad != null" class="puntaje">
+          <strong>{{ Math.round(orden.indice_prioridad) }}</strong><span class="escala">/100</span>
+          <span v-if="orden.prioridad_origen" class="origen">
+            {{ orden.prioridad_origen === 'ia' ? 'decidida por IA' : 'regla de respaldo' }}
+          </span>
+        </p>
+        <p v-else class="sin-prioridad">Sin calcular</p>
+        <p v-if="orden.justificacion_prioridad" class="justificacion">{{ orden.justificacion_prioridad }}</p>
       </section>
 
       <section class="card">
-        <h3>Datos de la orden</h3>
+        <h3>Estimación</h3>
         <template v-if="auth.esJefe">
-          <label class="campo-inline">
-            Costo estimado
-            <input v-model.number="costoEstimadoEdit" type="number" min="0" />
-          </label>
-          <label class="campo-inline">
-            Tiempo estimado (hs)
-            <input v-model.number="tiempoEstimadoEdit" type="number" min="0.1" step="0.5" />
-          </label>
+          <div class="campos">
+            <label class="campo-inline">
+              Costo estimado
+              <input v-model.number="costoEstimadoEdit" type="number" min="0" />
+            </label>
+            <label class="campo-inline">
+              Tiempo estimado (hs)
+              <input v-model.number="tiempoEstimadoEdit" type="number" min="0.1" step="0.1" />
+            </label>
+          </div>
           <button :disabled="guardandoEstimacion" @click="guardarEstimacion">
             {{ guardandoEstimacion ? 'Guardando…' : 'Guardar estimación' }}
           </button>
-          <p v-if="errorEstimacion" class="error">{{ errorEstimacion }}</p>
+          <p v-if="errorEstimacion" class="error" role="alert">{{ errorEstimacion }}</p>
           <p v-if="orden.costo_estimado == null || orden.tiempo_estimado == null" class="hint aviso-sin-estimacion">
-            Sin costo y/o tiempo estimado, esta orden no tiene prioridad calculada y queda al final del listado.
+            Falta costo o tiempo: la orden queda sin prioridad calculada.
           </p>
         </template>
         <template v-else>
-          <p>Costo estimado: {{ orden.costo_estimado ?? '—' }}</p>
-          <p>Tiempo estimado: {{ orden.tiempo_estimado ?? '—' }} hs</p>
+          <p class="dato">Costo estimado: {{ orden.costo_estimado ?? '—' }}</p>
+          <p class="dato">Tiempo estimado: {{ orden.tiempo_estimado ?? '—' }} hs</p>
         </template>
-        <p>Criticidad del trabajo: {{ orden.criticidad }}/5</p>
-        <p>
-          Prioridad sugerida: {{ orden.indice_prioridad != null ? Math.round(orden.indice_prioridad) + ' / 100' : '-' }}
-          <span v-if="orden.prioridad_origen">({{ orden.prioridad_origen === 'ia' ? 'decidida por IA' : 'regla de respaldo' }})</span>
-        </p>
-        <p v-if="orden.justificacion_prioridad" class="justificacion">{{ orden.justificacion_prioridad }}</p>
-        <p>Horas registradas: {{ orden.total_horas }}</p>
       </section>
 
       <section v-if="FEATURE_STOCK_PROVEEDORES" class="card">
-        <h3>Repuestos usados</h3>
-        <ul>
+        <h3>
+          Repuestos usados
+          <span v-if="orden.repuestos_usados.length" class="conteo">{{ orden.repuestos_usados.length }}</span>
+        </h3>
+        <ul v-if="orden.repuestos_usados.length" class="lista">
           <li v-for="r in orden.repuestos_usados" :key="r.id">
             {{ r.repuesto_detalle ? `${r.repuesto_detalle.codigo} — ${r.repuesto_detalle.descripcion}` : r.descripcion_encargo }}
             × {{ r.cantidad }}
             <span v-if="r.proveedor_nombre" class="hint"> · {{ r.proveedor_nombre }} (${{ r.precio_costo }} c/u)</span>
           </li>
-          <li v-if="orden.repuestos_usados.length === 0" class="hint">Sin repuestos cargados.</li>
         </ul>
+        <p v-else class="hint vacio">Sin repuestos cargados.</p>
 
-        <div v-if="!porEncargo" class="buscador-repuesto">
-          <input
-            v-model="busquedaRepuesto"
-            placeholder="Buscar repuesto en todas las listas de proveedores…"
-            @input="onBuscarRepuestoInput"
-          />
-          <ul v-if="sugerenciasRepuesto.length" class="sugerencias">
-            <li v-for="s in sugerenciasRepuesto" :key="s.key" @click="elegirSugerencia(s)">
-              {{ s.label }}
-            </li>
-          </ul>
-        </div>
-        <input v-else v-model="descripcionEncargo" placeholder="Descripción del repuesto por encargo" />
+        <details class="agregar">
+          <summary>Registrar repuesto</summary>
+          <div class="form-repuesto">
+            <label class="checkbox-inline">
+              <input
+                type="checkbox"
+                v-model="porEncargo"
+                @change="repuestoSeleccionado = null; buscadorRepuesto?.limpiar()"
+              />
+              Es por encargo (no está en el catálogo)
+            </label>
 
-        <div class="inline-form">
-          <label class="checkbox-inline">
-            <input type="checkbox" v-model="porEncargo" @change="busquedaRepuesto = ''; repuestoSeleccionado = null" />
-            Es por encargo (no está en el catálogo)
-          </label>
-        </div>
-        <div class="inline-form">
-          <input v-model.number="cantidadRepuesto" type="number" placeholder="Cantidad" min="1" />
-          <button :disabled="accionando" @click="agregarRepuesto">Agregar</button>
-        </div>
-        <p v-if="advertenciaRepuesto" class="error">{{ advertenciaRepuesto }}</p>
+            <div v-if="!porEncargo" class="buscador-repuesto">
+              <BuscadorCombobox
+                ref="buscadorRepuesto"
+                v-model="repuestoSeleccionado"
+                :cargar="cargarRepuestos"
+                :etiqueta="etiquetaRepuesto"
+                :clave="claveRepuesto"
+                etiqueta-accesible="Buscar repuesto en todas las listas de proveedores"
+                placeholder="Buscar repuesto…"
+                name="repuesto"
+                mensaje-error="No se pudo buscar repuestos. Reintentá escribiendo de nuevo."
+              />
+            </div>
+            <input
+              v-else
+              v-model="descripcionEncargo"
+              aria-label="Descripción del repuesto por encargo"
+              placeholder="Descripción del repuesto por encargo"
+            />
+
+            <div class="inline-form">
+              <input
+                v-model.number="cantidadRepuesto"
+                type="number"
+                aria-label="Cantidad de repuestos"
+                placeholder="Cantidad"
+                min="1"
+              />
+              <button :disabled="accionando" @click="agregarRepuesto">Agregar</button>
+            </div>
+            <p v-if="advertenciaRepuesto" class="error" role="alert">{{ advertenciaRepuesto }}</p>
+          </div>
+        </details>
       </section>
 
       <section class="card">
-        <h3>Horas trabajadas</h3>
-        <ul>
+        <h3>
+          Horas trabajadas
+          <span class="conteo">{{ orden.total_horas }} h</span>
+        </h3>
+        <ul v-if="orden.sesiones_horas.length" class="lista">
           <li v-for="s in orden.sesiones_horas" :key="s.id">
             {{ s.horas }} hs — {{ s.usuario_username }} ({{ new Date(s.fecha_registro).toLocaleString('es-AR') }})
           </li>
-          <li v-if="orden.sesiones_horas.length === 0" class="hint">Sin horas cargadas.</li>
         </ul>
+        <p v-else class="hint vacio">Sin horas cargadas.</p>
         <div class="inline-form">
-          <input v-model.number="nuevasHoras" type="number" step="0.25" placeholder="Horas" min="0" />
+          <input
+            v-model.number="nuevasHoras"
+            type="number"
+            step="0.25"
+            aria-label="Horas a registrar"
+            placeholder="Horas"
+            min="0"
+          />
           <button :disabled="accionando" @click="agregarHoras">Registrar</button>
         </div>
-        <p v-if="errorHoras" class="error">{{ errorHoras }}</p>
-      </section>
-
-      <section class="card">
-        <h3>Historial de estados</h3>
-        <ul>
-          <li v-for="h in orden.historial" :key="h.id">
-            {{ h.estado_anterior }} → {{ h.estado_nuevo }} — {{ h.usuario_username }}
-            ({{ new Date(h.fecha_cambio).toLocaleString('es-AR') }})
-          </li>
-          <li v-if="orden.historial.length === 0" class="hint">Sin cambios registrados.</li>
-        </ul>
+        <p v-if="errorHoras" class="error" role="alert">{{ errorHoras }}</p>
       </section>
     </div>
+
+    <details v-if="orden.historial.length" class="historial">
+      <summary>Historial de estados ({{ orden.historial.length }})</summary>
+      <ul class="lista">
+        <li v-for="h in orden.historial" :key="h.id">
+          {{ etiquetaEstado(h.estado_anterior) }} → {{ etiquetaEstado(h.estado_nuevo) }} — {{ h.usuario_username }}
+          ({{ new Date(h.fecha_cambio).toLocaleString('es-AR') }})
+        </li>
+      </ul>
+    </details>
+    <p v-else class="hint sin-historial">Sin cambios de estado registrados.</p>
   </div>
   <p v-else-if="cargando" class="page">Cargando…</p>
 </template>
 
 <style scoped>
-.justificacion {
-  font-size: 0.85rem;
-  color: #475569;
-}
 .page {
   max-width: 900px;
   margin: 2rem auto;
   padding: 0 1rem;
 }
 .volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   background: none;
   color: #0f172a;
   padding: 0;
   margin-bottom: 1rem;
   font-size: 0.85rem;
 }
+.volver svg {
+  width: 1.05em;
+  height: 1.05em;
+}
 h2 {
-  margin-bottom: 0.25rem;
+  margin: 0 0 0.25rem;
 }
 .subinfo {
   color: #64748b;
@@ -473,7 +522,20 @@ h2 {
   background: white;
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  margin-bottom: 1.5rem;
+  margin: 0 0 0.75rem;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.meta strong {
+  color: #0f172a;
+  font-weight: 600;
 }
 .grid {
   display: grid;
@@ -486,69 +548,171 @@ h2 {
   padding: 1rem;
 }
 .card h3 {
-  margin-top: 0;
+  margin: 0 0 0.75rem;
   font-size: 0.95rem;
 }
-.card select,
-.card input {
+.accion-estado {
+  margin-bottom: 1rem;
+}
+.estado-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.estado-select {
+  flex: 0 1 220px;
+  margin: 0;
+}
+.estado-form > input {
+  flex: 1 1 220px;
+}
+.estado-form button {
+  flex: 0 0 auto;
+}
+.campo-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+.campo-inline input,
+.campo-inline select {
   width: 100%;
-  margin-bottom: 0.5rem;
+  font-weight: 400;
+  color: #0f172a;
 }
-.card > button {
-  width: 100%;
-  margin-bottom: 0.5rem;
+.campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
-.whatsapp {
-  background: #16a34a;
+.puntaje {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin: 0 0 0.5rem;
 }
-ul {
+.puntaje strong {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.escala {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.origen {
+  margin-left: 0.35rem;
+  color: #475569;
+  font-size: 0.8rem;
+}
+.sin-prioridad {
+  margin: 0 0 0.5rem;
+  color: #b45309;
+  font-size: 0.9rem;
+}
+.justificacion {
+  margin: 0;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.dato {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
+.dato:last-child {
+  margin-bottom: 0;
+}
+.lista {
   list-style: none;
   padding: 0;
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
 }
-ul li {
+.lista li {
   padding: 0.35rem 0;
   border-bottom: 1px solid #f1f5f9;
 }
-.buscador-repuesto {
-  position: relative;
-  margin-bottom: 0.5rem;
+.lista li:last-child {
+  border-bottom: 0;
 }
-.buscador-repuesto input {
-  margin-bottom: 0;
+.conteo {
+  margin-left: 0.25rem;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 400;
 }
-.sugerencias {
-  position: absolute;
-  z-index: 10;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  max-height: 220px;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+.vacio {
+  margin: 0 0 0.75rem;
 }
-.sugerencias li {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
-  cursor: pointer;
+.hint {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.aviso-sin-estimacion {
+  margin: 0.5rem 0 0;
+  color: #b45309;
+}
+.motivo {
+  margin: 0.5rem 0 0;
+  color: #991b1b;
+  font-size: 0.8rem;
+}
+.error {
+  margin: 0.5rem 0 0;
+  color: #991b1b;
   font-size: 0.85rem;
 }
-.sugerencias li:hover {
+.aviso-cliente {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+.aviso-cliente .hint {
+  margin: 0.5rem 0 0;
+}
+.whatsapp {
+  background: #16a34a;
+}
+.agregar {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+.agregar summary {
+  cursor: pointer;
+  padding: 0.35rem 0;
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.agregar summary::marker {
+  color: #64748b;
+}
+.form-repuesto {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
   background: #f1f5f9;
+  border-radius: 6px;
+}
+.form-repuesto > input {
+  width: 100%;
+}
+.buscador-repuesto {
+  position: relative;
 }
 .checkbox-inline {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   font-size: 0.8rem;
-  font-weight: normal;
+  font-weight: 400;
   color: #64748b;
 }
 .checkbox-inline input {
@@ -559,34 +723,69 @@ ul li {
   display: flex;
   gap: 0.4rem;
 }
-.inline-form select {
-  flex: 2;
-}
 .inline-form input {
   flex: 1;
+  min-width: 0;
 }
 .inline-form button {
   flex: 0 0 auto;
 }
-.hint {
-  color: #94a3b8;
-  font-size: 0.8rem;
+.historial {
+  margin-top: 1rem;
+  padding: 0 1rem;
+  background: white;
+  border-radius: 8px;
 }
-.campo-inline {
-  display: block;
-  font-size: 0.8rem;
+.historial summary {
+  padding: 0.85rem 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.historial summary::marker {
   color: #64748b;
-  margin-bottom: 0.5rem;
 }
-.aviso-sin-estimacion {
-  color: #b45309;
+.historial .lista {
+  margin: 0 0 0.75rem;
 }
-.motivo {
-  color: #991b1b;
-  font-size: 0.85rem;
+.sin-historial {
+  margin: 1rem 0 0;
 }
-.error {
-  color: #991b1b;
-  font-size: 0.85rem;
+
+@media (max-width: 640px) {
+  .page {
+    margin: 1rem auto;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .estado-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .estado-select {
+    flex: 1 1 auto;
+  }
+  .estado-form > input {
+    flex: 1 1 auto;
+  }
+  .estado-form button {
+    width: 100%;
+  }
+  .campos {
+    grid-template-columns: 1fr;
+  }
+  .inline-form {
+    flex-wrap: wrap;
+  }
+  .agregar summary,
+  .historial summary {
+    min-height: 44px;
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+  }
+  .aviso-cliente .whatsapp {
+    width: 100%;
+  }
 }
 </style>

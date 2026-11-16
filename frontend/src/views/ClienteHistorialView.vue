@@ -2,9 +2,11 @@
 // HU-10/CU-06: buscar un cliente y ver el listado completo de sus
 // órdenes anteriores (todas, no solo las abiertas — a diferencia del
 // listado principal de OrdenesView, acá interesa el historial completo).
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api/client'
+import BuscadorCombobox from '../components/BuscadorCombobox.vue'
+import { etiquetaEstado } from '../utils/estados'
 
 const router = useRouter()
 
@@ -23,40 +25,23 @@ interface OrdenListado {
   criticidad: number
 }
 
-const busqueda = ref('')
-const sugerencias = ref<Cliente[]>([])
 const clienteElegido = ref<Cliente | null>(null)
 const ordenes = ref<OrdenListado[]>([])
 const cargando = ref(false)
-let debounceHandle: ReturnType<typeof setTimeout> | undefined
 
-// Una búsqueda vieja que tarda más no debe pisar el resultado de una
-// más nueva si el usuario ya siguió tipeando (mismo patrón que en
-// OrdenesView.vue y OrdenDetalleView.vue).
-let secuenciaBusqueda = 0
-
-function onBuscarInput() {
-  clienteElegido.value = null
-  ordenes.value = []
-  clearTimeout(debounceHandle)
-  const q = busqueda.value.trim()
-  if (q.length < 2) {
-    sugerencias.value = []
-    return
-  }
-  const idBusqueda = ++secuenciaBusqueda
-  debounceHandle = setTimeout(async () => {
-    const { data } = await api.get('/clientes/', { params: { search: q } })
-    if (idBusqueda === secuenciaBusqueda) {
-      sugerencias.value = data
-    }
-  }, 250)
+async function cargarClientes(q: string): Promise<Cliente[]> {
+  const { data } = await api.get('/clientes/', { params: { search: q } })
+  return data
 }
 
-async function elegirCliente(c: Cliente) {
-  clienteElegido.value = c
-  busqueda.value = `${c.razon_social} (${c.telefono})`
-  sugerencias.value = []
+const etiquetaCliente = (c: Cliente) => `${c.razon_social} (${c.telefono})`
+const claveCliente = (c: Cliente) => c.id
+
+// Elegir un cliente trae su historial; escribir de nuevo (el buscador emite
+// null) limpia el resultado anterior.
+watch(clienteElegido, async (c) => {
+  ordenes.value = []
+  if (!c) return
   cargando.value = true
   try {
     const { data } = await api.get('/ordenes/', { params: { cliente: c.id } })
@@ -64,7 +49,7 @@ async function elegirCliente(c: Cliente) {
   } finally {
     cargando.value = false
   }
-}
+})
 </script>
 
 <template>
@@ -72,16 +57,16 @@ async function elegirCliente(c: Cliente) {
     <h2>Historial de cliente</h2>
 
     <div class="buscador">
-      <input
-        v-model="busqueda"
+      <BuscadorCombobox
+        v-model="clienteElegido"
+        :cargar="cargarClientes"
+        :etiqueta="etiquetaCliente"
+        :clave="claveCliente"
+        etiqueta-accesible="Buscar cliente por nombre o teléfono"
         placeholder="Buscar cliente por nombre o teléfono…"
-        @input="onBuscarInput"
+        name="cliente"
+        mensaje-error="No se pudo buscar clientes. Reintentá escribiendo de nuevo."
       />
-      <ul v-if="sugerencias.length" class="sugerencias">
-        <li v-for="c in sugerencias" :key="c.id" @click="elegirCliente(c)">
-          {{ c.razon_social }} — {{ c.telefono }}
-        </li>
-      </ul>
     </div>
 
     <div v-if="clienteElegido" class="resultado">
@@ -109,7 +94,7 @@ async function elegirCliente(c: Cliente) {
             <td>{{ o.tipo_equipo ?? '—' }}</td>
             <td>{{ new Date(o.fecha_ingreso).toLocaleDateString('es-AR') }}</td>
             <td>
-              <span class="badge" :class="`badge-${o.estado}`">{{ o.estado }}</span>
+              <span class="badge" :class="`badge-${o.estado}`">{{ etiquetaEstado(o.estado) }}</span>
               <span v-if="o.motivo_bloqueo" class="motivo"> · {{ o.motivo_bloqueo }}</span>
             </td>
             <td>{{ o.criticidad }}/5</td>
@@ -131,38 +116,8 @@ async function elegirCliente(c: Cliente) {
   padding: 0 1rem;
 }
 .buscador {
-  position: relative;
   margin-bottom: 1.5rem;
-}
-.buscador input {
-  width: 100%;
   max-width: 400px;
-}
-.sugerencias {
-  position: absolute;
-  z-index: 10;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  max-width: 400px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  max-height: 220px;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-.sugerencias li {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.sugerencias li:hover {
-  background: #f1f5f9;
 }
 .resultado h3 {
   margin-bottom: 0.1rem;

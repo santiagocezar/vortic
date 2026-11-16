@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-15T00:00:00.000Z",
+  "title": "Design System: Vortic",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Azul de Fundición",
+        "canonical": "#0f172a",
+        "tonalRamp": ["#020617", "#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#cbd5e1", "#f8fafc"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Pared de Taller",
+        "canonical": "#f8fafc",
+        "tonalRamp": ["#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9", "#f8fafc"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Hoja",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc", "#ffffff"]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "Lavado",
+        "canonical": "#f1f5f9",
+        "tonalRamp": ["#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9", "#f8fafc"]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Línea",
+        "canonical": "#e2e8f0",
+        "tonalRamp": ["#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9", "#f8fafc"]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Línea Fuerte",
+        "canonical": "#cbd5e1",
+        "tonalRamp": ["#0f172a", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc"]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Gris Apagado",
+        "canonical": "#64748b",
+        "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f1f5f9"]
+      },
+      "muted-soft": {
+        "role": "neutral",
+        "displayName": "Gris Tenue",
+        "canonical": "#94a3b8",
+        "tonalRamp": ["#0f172a", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc"]
+      },
+      "body-soft": {
+        "role": "neutral",
+        "displayName": "Gris de Apoyo",
+        "canonical": "#475569",
+        "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f1f5f9"]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Rojo de Bloqueo",
+        "canonical": "#991b1b",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#fca5a5", "#fee2e2"]
+      },
+      "danger-wash": {
+        "role": "semantic",
+        "displayName": "Rojo Lavado",
+        "canonical": "#fee2e2",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#fca5a5", "#fee2e2"]
+      },
+      "success": {
+        "role": "semantic",
+        "displayName": "Verde de Cierre",
+        "canonical": "#166534",
+        "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#22c55e", "#4ade80", "#86efac", "#dcfce7"]
+      },
+      "success-wash": {
+        "role": "semantic",
+        "displayName": "Verde Lavado",
+        "canonical": "#dcfce7",
+        "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#22c55e", "#4ade80", "#86efac", "#dcfce7"]
+      },
+      "info": {
+        "role": "semantic",
+        "displayName": "Azul de Curso",
+        "canonical": "#1e40af",
+        "tonalRamp": ["#172554", "#1e3a8a", "#1e40af", "#1d4ed8", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
+      },
+      "info-wash": {
+        "role": "semantic",
+        "displayName": "Azul Lavado",
+        "canonical": "#dbeafe",
+        "tonalRamp": ["#172554", "#1e3a8a", "#1e40af", "#1d4ed8", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
+      },
+      "whatsapp": {
+        "role": "semantic",
+        "displayName": "Verde de Aviso",
+        "canonical": "#16a34a",
+        "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#dcfce7"]
+      },
+      "warning": {
+        "role": "semantic",
+        "displayName": "Ámbar de Advertencia",
+        "canonical": "#b45309",
+        "tonalRamp": ["#451a03", "#78350f", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fcd34d", "#fef3c7"]
+      }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Título de vista y de la orden en el detalle." },
+      "heading": { "displayName": "Heading", "purpose": "Títulos de tarjeta y de grupo del listado." },
+      "body": { "displayName": "Body", "purpose": "Texto corrido, valores de tabla y descripción de falla." },
+      "label": { "displayName": "Label", "purpose": "Etiquetas de formulario, botones, navegación y encabezados de tabla." },
+      "small": { "displayName": "Small", "purpose": "Justificación, hints, metadatos y fechas; piso informativo del sistema." },
+      "control": { "displayName": "Control", "purpose": "Texto de botones, campos de entrada y selectores." },
+      "badge": { "displayName": "Badge", "purpose": "Píldoras de estado." },
+      "chip": { "displayName": "Chip", "purpose": "Anotaciones cortas de 1px de borde, como Sin estimación." }
+    },
+    "shadows": [
+      { "name": "flotante", "value": "0 4px 12px rgba(0, 0, 0, 0.08)", "purpose": "Menús de autocompletado que flotan sobre el contenido." },
+      { "name": "modal", "value": "0 4px 20px rgba(0, 0, 0, 0.08)", "purpose": "Tarjeta de login, única superficie centrada sobre el viewport." }
+    ],
+    "motion": [],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción por defecto de cada pantalla: fondo azul de fundición, texto blanco, radio 6px.",
+      "html": "<button class=\"ds-btn-primary\">+ Nueva orden</button>",
+      "css": ".ds-btn-primary { background: #0f172a; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 0.9rem; font-weight: 400; font-family: system-ui, -apple-system, sans-serif; cursor: pointer; transition: none; } .ds-btn-primary:hover { background: #1e293b; } .ds-btn-primary:focus-visible { outline: 2px solid #0f172a; outline-offset: 2px; } .ds-btn-primary:active { background: #020617; } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Acción secundaria dentro de tablas o formularios: sin fondo, texto subrayado a 0.8rem.",
+      "html": "<button class=\"ds-btn-ghost\">Editar</button>",
+      "css": ".ds-btn-ghost { background: none; border: none; color: #0f172a; text-decoration: underline; padding: 3px 6px; font-size: 0.8rem; font-family: system-ui, -apple-system, sans-serif; cursor: pointer; } .ds-btn-ghost:hover { color: #475569; } .ds-btn-ghost:focus-visible { outline: 2px solid #0f172a; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de texto estándar: blanco, borde de 1px, radio 6px; el foco usa el anillo del navegador.",
+      "html": "<label class=\"ds-field\">Descripción del problema<input class=\"ds-input\" placeholder=\"Bomba hidráulica no levanta presión\" /></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 4px; font-family: system-ui, -apple-system, sans-serif; font-size: 0.85rem; font-weight: 600; color: #0f172a; } .ds-input { background: #fff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; font-size: 0.9rem; font-family: inherit; font-weight: 400; } .ds-input::placeholder { color: #94a3b8; } .ds-input:hover { border-color: #94a3b8; } .ds-input:focus-visible { outline: 2px solid #0f172a; outline-offset: 1px; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-en_curso",
+      "description": "Píldora de estado de la orden. Mismo tratamiento para pendiente, en curso, bloqueado y terminado, cambiando solo el par de color.",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-badge ds-badge-pendiente\">pendiente</span><span class=\"ds-badge ds-badge-en_curso\">en_curso</span><span class=\"ds-badge ds-badge-bloqueado\">bloqueado</span><span class=\"ds-badge ds-badge-terminado\">terminado</span></div>",
+      "css": ".ds-badges { display: flex; gap: 8px; font-family: system-ui, -apple-system, sans-serif; } .ds-badge { padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; } .ds-badge-pendiente { background: #e2e8f0; color: #334155; } .ds-badge-en_curso { background: #dbeafe; color: #1e40af; } .ds-badge-bloqueado { background: #fee2e2; color: #991b1b; } .ds-badge-terminado { background: #dcfce7; color: #166534; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Superficie de contenido blanca sobre la pared gris, radio 8px, sin sombra ni borde.",
+      "html": "<section class=\"ds-card\"><h3 class=\"ds-card-title\">Estado</h3><p class=\"ds-card-body\">Pendiente de diagnóstico.</p></section>",
+      "css": ".ds-card { background: #fff; border-radius: 8px; padding: 16px; font-family: system-ui, -apple-system, sans-serif; color: #0f172a; } .ds-card-title { margin: 0 0 8px; font-size: 0.95rem; font-weight: 700; } .ds-card-body { margin: 0; font-size: 0.85rem; color: #475569; }"
+    },
+    {
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Barra superior azul de fundición con la marca, los enlaces de sección y el cierre de sesión.",
+      "html": "<header class=\"ds-topbar\"><div class=\"ds-topbar-left\"><span class=\"ds-brand\">Vortic</span><nav class=\"ds-nav\"><a class=\"ds-nav-link ds-nav-link-active\" href=\"#\">Órdenes</a><a class=\"ds-nav-link\" href=\"#\">Clientes</a><a class=\"ds-nav-link\" href=\"#\">Stock</a></nav></div><button class=\"ds-logout\">Salir</button></header>",
+      "css": ".ds-topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: #0f172a; font-family: system-ui, -apple-system, sans-serif; } .ds-topbar-left { display: flex; align-items: center; gap: 24px; } .ds-brand { color: #fff; font-weight: 700; letter-spacing: 0.05em; font-size: 1rem; } .ds-nav { display: flex; gap: 16px; } .ds-nav-link { color: #cbd5e1; text-decoration: none; font-size: 0.9rem; } .ds-nav-link:hover { color: #fff; } .ds-nav-link-active { color: #fff; font-weight: 600; } .ds-logout { background: #fff; color: #0f172a; border: none; border-radius: 6px; padding: 8px 16px; font-size: 0.9rem; cursor: pointer; }"
+    },
+    {
+      "name": "Table Row",
+      "kind": "custom",
+      "description": "Fila navegable del listado: separador de 1px, hover lavado, sin zebra.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>#</th><th>Orden</th><th>Cliente</th><th>Prioridad</th></tr></thead><tbody><tr class=\"ds-row\"><td>1</td><td>OT-0042</td><td>Metalúrgica San Jorge</td><td>87 <span class=\"ds-origin\">IA</span></td></tr><tr class=\"ds-row\"><td>2</td><td>OT-0041</td><td>Agropecuaria del Oeste</td><td>64 <span class=\"ds-origin\">Regla</span></td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; font-family: system-ui, -apple-system, sans-serif; font-size: 0.9rem; color: #0f172a; } .ds-table th, .ds-table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; } .ds-table th { font-size: 0.85rem; font-weight: 600; } .ds-row { cursor: pointer; } .ds-row:hover { background: #f1f5f9; } .ds-origin { font-size: 0.7rem; border: 1px solid #94a3b8; border-radius: 4px; padding: 0 3px; margin-left: 3px; color: #475569; }"
+    },
+    {
+      "name": "Priority Justification Row",
+      "kind": "custom",
+      "description": "Fila secundaria bajo la orden que explica por qué la IA o la regla la pusieron en ese lugar.",
+      "html": "<div class=\"ds-just\"><span class=\"ds-just-label\">Justificación</span><p class=\"ds-just-text\">Cliente con equipo detenido y costo estimado alto: conviene atenderlo antes que los trabajos de mantenimiento preventivo.</p></div>",
+      "css": ".ds-just { font-family: system-ui, -apple-system, sans-serif; padding: 0 12px 8px; } .ds-just-label { display: block; font-size: 0.7rem; font-weight: 600; color: #94a3b8; letter-spacing: 0.04em; text-transform: uppercase; } .ds-just-text { margin: 2px 0 0; font-size: 0.8rem; color: #475569; max-width: 70ch; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "La pizarra de taller",
+    "overview": "Vortic es la pizarra donde el taller anota el trabajo del día: se lee de un vistazo, desde la puerta, y cada trabajo tiene un lugar y un motivo. La interfaz no compite con los datos. El gris claro del fondo hace de pared, las superficies blancas hacen de hojas, y el azul de fundición marca lo que se toca. Nada flota si no tiene que flotar.\n\nLa densidad es deliberada pero no apretada: el listado principal es una tabla, no una grilla de tarjetas, y la primera columna útil es el orden de prioridad. El tono es industrial y táctil sin disfrazarse de industria: la tipografía es la del sistema operativo, los bordes son honestos, y no hay texturas de metal, stencil ni óxido.\n\nEste sistema se niega a dos cosas. No es un dashboard SaaS: no hay tarjetas KPI de colores, gradientes ni métricas decorativas; un número aparece porque se usa. Y no es una estética industrial decorativa: la herramienta se ve como herramienta, no como utilería.",
+    "keyCharacteristics": [
+      "Tabla como unidad de lectura principal; el orden de las filas es la información más importante.",
+      "Fondo gris frío (#f8fafc) y superficies blancas; la elevación se resuelve por capas tonales, no por sombras.",
+      "Un solo color con saturación real: el semáforo de estado. El resto es la familia slate.",
+      "Tipografía del sistema, jerarquía por tamaño y peso; nada de fuentes decorativas.",
+      "Radios cortos (6–8px) y bordes de 1px; targets táctiles generosos en el celular del técnico."
+    ],
+    "rules": [
+      { "name": "La Regla del Semáforo Único", "body": "El color saturado pertenece al estado de la orden y a los errores. Si un elemento no comunica estado, error o la acción de WhatsApp, es slate.", "section": "colors" },
+      { "name": "La Regla de la Pared y la Hoja", "body": "El fondo de la app es siempre #f8fafc; el contenido legible vive sobre #ffffff. Una tarjeta blanca dentro de otra tarjeta blanca está prohibida: se resuelve con #f1f5f9.", "section": "colors" },
+      { "name": "La Regla de los Dos Ejes", "body": "La jerarquía tipográfica se logra con tamaño y peso, nunca con una segunda familia ni con mayúsculas sostenidas. Los estados usan el vocabulario del backend con su etiqueta legible (\"En curso\", no en_curso): el valor que viaja a la API no cambia, la pantalla no muestra guiones bajos.", "section": "typography" },
+      { "name": "La Regla del 0,8", "body": "Ningún texto informativo baja de 0.8rem. Los tamaños 0.75rem y 0.7rem están reservados para badges y etiquetas de origen, que acompañan a un dato ya legible.", "section": "typography" },
+      { "name": "La Regla del Plano", "body": "Una tarjeta en reposo no tiene sombra. Si una superficie necesita una sombra para entenderse, el problema es el contraste tonal, no la falta de sombra.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do resolver la separación entre superficies con los tres tonos (#f8fafc, #ffffff, #f1f5f9) antes de recurrir a una sombra.",
+      "Do mostrar el puntaje de prioridad y marcar con la estrella solo las prioridades decididas por IA; cuando exista, mostrar la justificación en la fila de abajo.",
+      "Do usar la tabla como unidad de lectura para cualquier conjunto de registros; una grilla de tarjetas solo si cada registro tiene imagen o contenido heterogéneo.",
+      "Do mantener los botones y campos en 6px de radio y las tarjetas en 8px.",
+      "Do dejar los estados en minúscula y con el vocabulario del backend (pendiente, en_curso, bloqueado, terminado).",
+      "Do dar al menos 0.5rem de separación entre controles y usar padding de 0.5rem 1rem en botones, para que funcionen con el pulgar y con guantes.",
+      "Do repetir el patrón de autocompletado con debounce y guarda de secuencia (buscador de cliente, de repuesto) en cualquier búsqueda nueva."
+    ],
+    "donts": [
+      "Don't introducir tarjetas KPI, gradientes, gráficos decorativos ni métricas que no se accionen: es la anti-referencia explícita del sistema.",
+      "Don't usar texturas de metal, óxido, stencil, cintas de peligro ni tipografía condensada \"industrial\": la herramienta se ve como herramienta.",
+      "Don't poner una tarjeta blanca dentro de otra tarjeta blanca.",
+      "Don't usar el verde de WhatsApp para otra cosa que el aviso al cliente, ni el rojo para acciones que no sean error o bloqueo.",
+      "Don't agregar una segunda familia tipográfica ni mayúsculas sostenidas para dar énfasis.",
+      "Don't bajar texto informativo de 0.8rem ni usar rem fuera de la escala de 4px.",
+      "Don't envolver la tabla principal en una tarjeta con sombra: el listado es el documento, no un widget."
+    ]
+  }
+}

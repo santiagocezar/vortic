@@ -6,6 +6,8 @@
 // el backend: usuarios/permissions.py EsJefe).
 import { ref, onMounted } from 'vue'
 import api from '../api/client'
+import IconAdd from '~icons/material-symbols/add'
+import IconClose from '~icons/material-symbols/close'
 
 interface Usuario {
   id: number
@@ -60,8 +62,14 @@ onMounted(cargar)
   <div class="page">
     <div class="page-header">
       <h2>Usuarios</h2>
-      <button @click="mostrarForm = !mostrarForm">
-        {{ mostrarForm ? 'Cancelar' : '+ Nuevo usuario' }}
+      <button
+        class="btn-icono"
+        :class="{ 'boton-secundario': mostrarForm }"
+        @click="mostrarForm = !mostrarForm"
+      >
+        <IconClose v-if="mostrarForm" aria-hidden="true" />
+        <IconAdd v-else aria-hidden="true" />
+        {{ mostrarForm ? 'Cancelar' : 'Nuevo usuario' }}
       </button>
     </div>
 
