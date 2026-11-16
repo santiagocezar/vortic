@@ -20,6 +20,7 @@ export default defineConfig({
       },
     }),
   ],
+  base: '/vortic',
   server: {
     port: 5173,
   },

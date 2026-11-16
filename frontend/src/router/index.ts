@@ -10,7 +10,7 @@ import ClienteHistorialView from '../views/ClienteHistorialView.vue'
 import UsuariosView from '../views/UsuariosView.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory('/vortic'),
   routes: [
     { path: '/login', name: 'login', component: LoginView },
     { path: '/', name: 'ordenes', component: OrdenesView, meta: { requiresAuth: true } },
