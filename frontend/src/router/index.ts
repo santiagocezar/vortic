@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { FEATURE_STOCK_PROVEEDORES } from '../config/features'
 import LoginView from '../views/LoginView.vue'
@@ -10,7 +10,7 @@ import ClienteHistorialView from '../views/ClienteHistorialView.vue'
 import UsuariosView from '../views/UsuariosView.vue'
 
 const router = createRouter({
-  history: createWebHistory('/vortic'),
+  history: createWebHashHistory('/vortic'),
   routes: [
     { path: '/login', name: 'login', component: LoginView },
     { path: '/', name: 'ordenes', component: OrdenesView, meta: { requiresAuth: true } },
