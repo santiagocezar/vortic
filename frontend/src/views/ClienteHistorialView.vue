@@ -84,12 +84,7 @@ watch(clienteElegido, async (c) => {
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="o in ordenes"
-            :key="o.id"
-            class="fila-orden"
-            @click="router.push({ name: 'orden-detalle', params: { id: o.id } })"
-          >
+          <tr v-for="o in ordenes" :key="o.id" class="fila-orden" @click="router.push({ name: 'orden-detalle', params: { id: o.id } })">
             <td>OT-{{ String(o.id).padStart(4, '0') }}</td>
             <td>{{ o.tipo_equipo ?? '—' }}</td>
             <td>{{ new Date(o.fecha_ingreso).toLocaleDateString('es-AR') }}</td>

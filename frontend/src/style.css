@@ -67,7 +67,9 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-input, select, textarea {
+input,
+select,
+textarea {
   font-family: inherit;
   font-size: 0.9rem;
   padding: 0.4rem 0.6rem;
@@ -79,7 +81,8 @@ table {
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
-th, td {
+th,
+td {
   text-align: left;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid #e2e8f0;
@@ -90,10 +93,22 @@ th, td {
   font-size: 0.75rem;
   font-weight: 600;
 }
-.badge-bloqueado { background: #fee2e2; color: #991b1b; }
-.badge-pendiente { background: #e2e8f0; color: #334155; }
-.badge-en_curso { background: #dbeafe; color: #1e40af; }
-.badge-terminado { background: #dcfce7; color: #166534; }
+.badge-bloqueado {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.badge-pendiente {
+  background: #e2e8f0;
+  color: #334155;
+}
+.badge-en_curso {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.badge-terminado {
+  background: #dcfce7;
+  color: #166534;
+}
 
 /* En el celular el técnico usa el mismo producto: objetivos de 44px y campos
    de 16px, el umbral con el que iOS deja de hacer zoom al enfocar. */

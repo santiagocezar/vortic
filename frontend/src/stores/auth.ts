@@ -60,7 +60,9 @@ export const useAuthStore = defineStore('auth', {
     },
     async refrescarToken() {
       if (!this.refreshToken) throw new Error('Sin refresh token')
-      const { data } = await axios.post(`${API_URL}/token/refresh/`, { refresh: this.refreshToken })
+      const { data } = await axios.post(`${API_URL}/token/refresh/`, {
+        refresh: this.refreshToken,
+      })
       this.accessToken = data.access
     },
     // Al recargar la página: pide un token de acceso nuevo con el de

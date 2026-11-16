@@ -137,9 +137,7 @@ const ESTADOS = [
 // HU-06: avisar al cliente es una decisión del Jefe de Taller, no del
 // Técnico (el backend ya lo bloquea con 403; acá se oculta el botón para
 // que el Técnico no se encuentre con un error al tocarlo).
-const puedeAvisar = computed(
-  () => auth.esJefe && orden.value?.estado === 'terminado' && !!orden.value?.cliente_detalle?.telefono,
-)
+const puedeAvisar = computed(() => auth.esJefe && orden.value?.estado === 'terminado' && !!orden.value?.cliente_detalle?.telefono)
 
 async function cargar() {
   cargando.value = true
@@ -267,9 +265,7 @@ async function guardarEstimacion() {
     })
     orden.value = data
   } catch (e: any) {
-    errorEstimacion.value = e?.response?.data
-      ? JSON.stringify(e.response.data)
-      : 'No se pudo guardar la estimación.'
+    errorEstimacion.value = e?.response?.data ? JSON.stringify(e.response.data) : 'No se pudo guardar la estimación.'
   } finally {
     guardandoEstimacion.value = false
   }
@@ -315,7 +311,9 @@ onMounted(cargar)
     <p class="falla">{{ orden.descripcion_falla }}</p>
     <p class="meta">
       <span class="badge" :class="`badge-${orden.estado}`">{{ etiquetaEstado(orden.estado) }}</span>
-      <span>Criticidad <strong>{{ orden.criticidad }}/5</strong></span>
+      <span
+        >Criticidad <strong>{{ orden.criticidad }}/5</strong></span
+      >
     </p>
 
     <section class="card accion-estado">
@@ -327,12 +325,7 @@ onMounted(cargar)
             <option v-for="e in ESTADOS" :key="e.value" :value="e.value">{{ e.label }}</option>
           </select>
         </label>
-        <input
-          v-if="nuevoEstado === 'bloqueado'"
-          v-model="motivoBloqueo"
-          aria-label="Motivo de bloqueo"
-          placeholder="Motivo de bloqueo (obligatorio)"
-        />
+        <input v-if="nuevoEstado === 'bloqueado'" v-model="motivoBloqueo" aria-label="Motivo de bloqueo" placeholder="Motivo de bloqueo (obligatorio)" />
         <button :disabled="accionando" @click="cambiarEstado">Guardar estado</button>
       </div>
       <p v-if="orden.motivo_bloqueo" class="motivo">Motivo de bloqueo: {{ orden.motivo_bloqueo }}</p>
@@ -343,9 +336,7 @@ onMounted(cargar)
           <IconChat aria-hidden="true" />
           Avisar al cliente por WhatsApp
         </button>
-        <p v-if="orden.fecha_aviso_cliente" class="hint">
-          Avisado el {{ new Date(orden.fecha_aviso_cliente).toLocaleString('es-AR') }}
-        </p>
+        <p v-if="orden.fecha_aviso_cliente" class="hint">Avisado el {{ new Date(orden.fecha_aviso_cliente).toLocaleString('es-AR') }}</p>
       </div>
     </section>
 
@@ -353,7 +344,8 @@ onMounted(cargar)
       <section class="card">
         <h3>Prioridad</h3>
         <p v-if="orden.indice_prioridad != null" class="puntaje">
-          <strong>{{ Math.round(orden.indice_prioridad) }}</strong><span class="escala">/100</span>
+          <strong>{{ Math.round(orden.indice_prioridad) }}</strong
+          ><span class="escala">/100</span>
           <span v-if="orden.prioridad_origen" class="origen">
             {{ orden.prioridad_origen === 'ia' ? 'decidida por IA' : 'regla de respaldo' }}
           </span>
@@ -410,7 +402,10 @@ onMounted(cargar)
               <input
                 type="checkbox"
                 v-model="porEncargo"
-                @change="repuestoSeleccionado = null; buscadorRepuesto?.limpiar()"
+                @change="
+                  repuestoSeleccionado = null
+                  buscadorRepuesto?.limpiar()
+                "
               />
               Es por encargo (no está en el catálogo)
             </label>
@@ -428,21 +423,10 @@ onMounted(cargar)
                 mensaje-error="No se pudo buscar repuestos. Reintentá escribiendo de nuevo."
               />
             </div>
-            <input
-              v-else
-              v-model="descripcionEncargo"
-              aria-label="Descripción del repuesto por encargo"
-              placeholder="Descripción del repuesto por encargo"
-            />
+            <input v-else v-model="descripcionEncargo" aria-label="Descripción del repuesto por encargo" placeholder="Descripción del repuesto por encargo" />
 
             <div class="inline-form">
-              <input
-                v-model.number="cantidadRepuesto"
-                type="number"
-                aria-label="Cantidad de repuestos"
-                placeholder="Cantidad"
-                min="1"
-              />
+              <input v-model.number="cantidadRepuesto" type="number" aria-label="Cantidad de repuestos" placeholder="Cantidad" min="1" />
               <button :disabled="accionando" @click="agregarRepuesto">Agregar</button>
             </div>
             <p v-if="advertenciaRepuesto" class="error" role="alert">{{ advertenciaRepuesto }}</p>
@@ -462,14 +446,7 @@ onMounted(cargar)
         </ul>
         <p v-else class="hint vacio">Sin horas cargadas.</p>
         <div class="inline-form">
-          <input
-            v-model.number="nuevasHoras"
-            type="number"
-            step="0.25"
-            aria-label="Horas a registrar"
-            placeholder="Horas"
-            min="0"
-          />
+          <input v-model.number="nuevasHoras" type="number" step="0.25" aria-label="Horas a registrar" placeholder="Horas" min="0" />
           <button :disabled="accionando" @click="agregarHoras">Registrar</button>
         </div>
         <p v-if="errorHoras" class="error" role="alert">{{ errorHoras }}</p>
@@ -480,8 +457,9 @@ onMounted(cargar)
       <summary>Historial de estados ({{ orden.historial.length }})</summary>
       <ul class="lista">
         <li v-for="h in orden.historial" :key="h.id">
-          {{ etiquetaEstado(h.estado_anterior) }} → {{ etiquetaEstado(h.estado_nuevo) }} — {{ h.usuario_username }}
-          ({{ new Date(h.fecha_cambio).toLocaleString('es-AR') }})
+          {{ etiquetaEstado(h.estado_anterior) }} → {{ etiquetaEstado(h.estado_nuevo) }} — {{ h.usuario_username }} ({{
+            new Date(h.fecha_cambio).toLocaleString('es-AR')
+          }})
         </li>
       </ul>
     </details>

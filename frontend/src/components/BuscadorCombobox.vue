@@ -8,12 +8,7 @@
 // usuario sigue tipeando, una búsqueda vieja que tarda más no puede pisar el
 // resultado de una más nueva (misma regla que DESIGN.md pide repetir).
 import { computed, onUnmounted, ref, watch } from 'vue'
-import {
-  Combobox,
-  ComboboxInput,
-  ComboboxOption,
-  ComboboxOptions,
-} from '@headlessui/vue'
+import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue'
 import IconSearch from '~icons/material-symbols/search'
 
 // El ítem es opaco para el buscador: cada vista decide su forma y aporta
@@ -94,11 +89,14 @@ function alSeleccionar(item: Item | null) {
 
 // Una selección puesta desde afuera (ej.: se creó un cliente nuevo y se
 // elige automáticamente) también tiene que reflejarse en el input.
-watch(() => props.modelValue, (item) => {
-  if (!item) return
-  consulta.value = props.etiqueta(item)
-  sugerencias.value = []
-})
+watch(
+  () => props.modelValue,
+  (item) => {
+    if (!item) return
+    consulta.value = props.etiqueta(item)
+    sugerencias.value = []
+  },
+)
 
 // Headless UI muestra el valor elegido con esta función y, cuando no hay
 // selección, deja el texto que el usuario está tipeando.
@@ -134,30 +132,13 @@ onUnmounted(() => clearTimeout(debounce))
 
 <template>
   <div class="buscador-combobox">
-    <Combobox
-      :model-value="modelValue"
-      :by="mismaClave"
-      nullable
-      @update:model-value="alSeleccionar"
-    >
+    <Combobox :model-value="modelValue" :by="mismaClave" nullable @update:model-value="alSeleccionar">
       <div class="campo-busqueda">
         <IconSearch aria-hidden="true" />
-        <ComboboxInput
-          :name="name"
-          :aria-label="etiquetaAccesible"
-          :placeholder="placeholder"
-          :display-value="textoMostrado"
-          @change="alEscribir"
-        />
+        <ComboboxInput :name="name" :aria-label="etiquetaAccesible" :placeholder="placeholder" :display-value="textoMostrado" @change="alEscribir" />
       </div>
       <ComboboxOptions v-if="sugerencias.length" class="sugerencias">
-        <ComboboxOption
-          v-for="item in sugerencias"
-          :key="clave(item)"
-          :value="item"
-          as="template"
-          v-slot="{ active }"
-        >
+        <ComboboxOption v-for="item in sugerencias" :key="clave(item)" :value="item" as="template" v-slot="{ active }">
           <li :class="{ 'opcion-activa': active }">
             <slot name="opcion" :item="item" :active="active">{{ etiqueta(item) }}</slot>
           </li>

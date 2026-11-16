@@ -14,15 +14,35 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginView },
     { path: '/', name: 'ordenes', component: OrdenesView, meta: { requiresAuth: true } },
-    { path: '/ordenes/:id', name: 'orden-detalle', component: OrdenDetalleView, meta: { requiresAuth: true } },
+    {
+      path: '/ordenes/:id',
+      name: 'orden-detalle',
+      component: OrdenDetalleView,
+      meta: { requiresAuth: true },
+    },
     { path: '/stock', name: 'stock', component: StockView, meta: { requiresAuth: true } },
-    { path: '/proveedores', name: 'proveedores', component: ProveedoresView, meta: { requiresAuth: true } },
-    { path: '/clientes', name: 'clientes-historial', component: ClienteHistorialView, meta: { requiresAuth: true } },
+    {
+      path: '/proveedores',
+      name: 'proveedores',
+      component: ProveedoresView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/clientes',
+      name: 'clientes-historial',
+      component: ClienteHistorialView,
+      meta: { requiresAuth: true },
+    },
     // Hallazgo F: gestión de usuarios (alta de técnicos, contraseñas, baja
     // lógica) sin depender de /admin/ de Django — solo Jefe (ver también
     // usuarios/permissions.py EsJefe, que rechaza esto igual del lado del
     // backend aunque alguien navegue directo a la URL).
-    { path: '/usuarios', name: 'usuarios', component: UsuariosView, meta: { requiresAuth: true, soloJefe: true } },
+    {
+      path: '/usuarios',
+      name: 'usuarios',
+      component: UsuariosView,
+      meta: { requiresAuth: true, soloJefe: true },
+    },
   ],
 })
 

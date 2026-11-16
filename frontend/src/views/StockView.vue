@@ -31,7 +31,10 @@ const error = ref('')
 
 const mostrarForm = ref(false)
 const nuevoRepuesto = ref({
-  codigo: '', descripcion: '', cantidad_actual: 0, cantidad_minima: 0,
+  codigo: '',
+  descripcion: '',
+  cantidad_actual: 0,
+  cantidad_minima: 0,
 })
 
 const editandoId = ref<number | null>(null)
@@ -94,12 +97,7 @@ onMounted(cargar)
   <div class="page">
     <div class="page-header">
       <h2>Stock de repuestos</h2>
-      <button
-        v-if="auth.esJefe"
-        class="btn-icono"
-        :class="{ 'boton-secundario': mostrarForm }"
-        @click="mostrarForm = !mostrarForm"
-      >
+      <button v-if="auth.esJefe" class="btn-icono" :class="{ 'boton-secundario': mostrarForm }" @click="mostrarForm = !mostrarForm">
         <IconClose v-if="mostrarForm" aria-hidden="true" />
         <IconAdd v-else aria-hidden="true" />
         {{ mostrarForm ? 'Cancelar' : 'Nuevo repuesto' }}
@@ -156,7 +154,8 @@ onMounted(cargar)
             <td>{{ r.cantidad_minima }}</td>
             <td>
               <span v-if="r.precio_costo_sugerido">
-                ${{ r.precio_costo_sugerido }} <span class="hint">({{ r.proveedor_sugerido_nombre }}, más barato)</span>
+                ${{ r.precio_costo_sugerido }}
+                <span class="hint">({{ r.proveedor_sugerido_nombre }}, más barato)</span>
               </span>
               <span v-else class="hint">Sin proveedor cargado</span>
             </td>

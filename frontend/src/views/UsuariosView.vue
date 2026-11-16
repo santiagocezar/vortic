@@ -62,11 +62,7 @@ onMounted(cargar)
   <div class="page">
     <div class="page-header">
       <h2>Usuarios</h2>
-      <button
-        class="btn-icono"
-        :class="{ 'boton-secundario': mostrarForm }"
-        @click="mostrarForm = !mostrarForm"
-      >
+      <button class="btn-icono" :class="{ 'boton-secundario': mostrarForm }" @click="mostrarForm = !mostrarForm">
         <IconClose v-if="mostrarForm" aria-hidden="true" />
         <IconAdd v-else aria-hidden="true" />
         {{ mostrarForm ? 'Cancelar' : 'Nuevo usuario' }}

@@ -104,9 +104,7 @@ const nuevaOrden = ref({
 })
 
 function firmaDe(list: OrdenListado[]) {
-  return list
-    .map(o => `${o.id}:${o.estado}:${o.indice_prioridad ?? '-'}:${o.prioridad_origen}`)
-    .join('|')
+  return list.map((o) => `${o.id}:${o.estado}:${o.indice_prioridad ?? '-'}:${o.prioridad_origen}`).join('|')
 }
 
 async function cargarOrdenes(silencioso = false, aplicarDirecto = false) {
@@ -155,7 +153,7 @@ async function cargarOrdenes(silencioso = false, aplicarDirecto = false) {
 function limpiarRecienCreadas(list: OrdenListado[]) {
   if (!recienCreadas.value.length) return
   recienCreadas.value = recienCreadas.value.filter((id) => {
-    const orden = list.find(o => o.id === id)
+    const orden = list.find((o) => o.id === id)
     return !orden || orden.indice_prioridad == null
   })
 }
@@ -167,15 +165,19 @@ const REFRESCOS_POST_ALTA = [2000, 5000, 10000]
 
 function programarRefrescosPostAlta() {
   timersPostAlta.forEach(clearTimeout)
-  timersPostAlta = REFRESCOS_POST_ALTA.map(ms => setTimeout(async () => {
-    if (document.hidden) return
-    await cargarOrdenes(true, true)
-  }, ms))
+  timersPostAlta = REFRESCOS_POST_ALTA.map((ms) =>
+    setTimeout(async () => {
+      if (document.hidden) return
+      await cargarOrdenes(true, true)
+    }, ms),
+  )
   // Pasada la ventana, lo que siga sin índice vuelve a leerse como
   // "Sin estimación": ya no es un cálculo en curso sino un dato que falta.
-  timersPostAlta.push(setTimeout(() => {
-    recienCreadas.value = []
-  }, VENTANA_CALCULO_MS))
+  timersPostAlta.push(
+    setTimeout(() => {
+      recienCreadas.value = []
+    }, VENTANA_CALCULO_MS),
+  )
 }
 
 function aplicarCambios() {
@@ -252,10 +254,7 @@ async function crearCliente() {
     // backend tal cual en vez de un JSON crudo, para que el jefe de
     // taller entienda que probablemente ya existe ese cliente y lo
     // busque en vez de reintentar crear uno nuevo.
-    errorForm.value = mensajeDeError(
-      e?.response?.data,
-      'No se pudo crear el cliente. Revisá los datos e intentá de nuevo.',
-    )
+    errorForm.value = mensajeDeError(e?.response?.data, 'No se pudo crear el cliente. Revisá los datos e intentá de nuevo.')
   } finally {
     creandoCliente.value = false
   }
@@ -270,9 +269,7 @@ async function crearOrden() {
     errorForm.value = 'Elegí el tipo de equipo.'
     return
   }
-  const tipoEquipoFinal = tipoEquipoSeleccionado.value === OTRO_VALOR
-    ? tipoEquipoOtro.value.trim()
-    : tipoEquipoSeleccionado.value
+  const tipoEquipoFinal = tipoEquipoSeleccionado.value === OTRO_VALOR ? tipoEquipoOtro.value.trim() : tipoEquipoSeleccionado.value
   if (tipoEquipoSeleccionado.value === OTRO_VALOR && !tipoEquipoFinal) {
     errorForm.value = 'Especificá el tipo de equipo.'
     return
@@ -296,7 +293,9 @@ async function crearOrden() {
     recienCreadas.value = [...recienCreadas.value, creada.id]
     nuevaOrden.value = {
       descripcion_falla: '',
-      costo_estimado: null, tiempo_estimado: null, criticidad: 2,
+      costo_estimado: null,
+      tiempo_estimado: null,
+      criticidad: 2,
     }
     tipoEquipoSeleccionado.value = ''
     tipoEquipoOtro.value = ''
@@ -305,14 +304,13 @@ async function crearOrden() {
     mostrarForm.value = false
     mensajeExito.value = 'Orden registrada. La prioridad se recalcula en unos segundos.'
     clearTimeout(timerExito)
-    timerExito = setTimeout(() => { mensajeExito.value = '' }, 6000)
+    timerExito = setTimeout(() => {
+      mensajeExito.value = ''
+    }, 6000)
     await cargarOrdenes()
     programarRefrescosPostAlta()
   } catch (e: any) {
-    errorForm.value = mensajeDeError(
-      e?.response?.data,
-      'No se pudo registrar la orden. Revisá los datos e intentá de nuevo.',
-    )
+    errorForm.value = mensajeDeError(e?.response?.data, 'No se pudo registrar la orden. Revisá los datos e intentá de nuevo.')
   } finally {
     guardando.value = false
   }
@@ -321,15 +319,13 @@ async function crearOrden() {
 // CU-08: sin filtro, el listado se separa en tres grupos. Las activas
 // vienen ordenadas por prioridad desde el backend; las bloqueadas no
 // compiten en el orden y se muestran aparte con su motivo.
-const activas = computed(() => ordenes.value.filter(o => o.estado === 'pendiente' || o.estado === 'en_curso'))
-const bloqueadas = computed(() => ordenes.value.filter(o => o.estado === 'bloqueado'))
-const terminadas = computed(() => ordenes.value.filter(o => o.estado === 'terminado'))
+const activas = computed(() => ordenes.value.filter((o) => o.estado === 'pendiente' || o.estado === 'en_curso'))
+const bloqueadas = computed(() => ordenes.value.filter((o) => o.estado === 'bloqueado'))
+const terminadas = computed(() => ordenes.value.filter((o) => o.estado === 'terminado'))
 
 // Momento en que el motor recalculó por última vez el orden de las activas.
 const prioridadActualizada = computed(() => {
-  const fechas = activas.value
-    .map(o => o.prioridad_actualizada)
-    .filter((f): f is string => !!f)
+  const fechas = activas.value.map((o) => o.prioridad_actualizada).filter((f): f is string => !!f)
   if (!fechas.length) return ''
   const ultima = fechas.reduce((a, b) => (new Date(a) > new Date(b) ? a : b))
   return `recalculada ${hace(ultima)}`
@@ -372,12 +368,7 @@ onUnmounted(() => {
   <div class="page">
     <div class="page-header">
       <h2>Órdenes de trabajo</h2>
-      <button
-        v-if="auth.esJefe"
-        class="btn-icono"
-        :class="{ 'boton-secundario': mostrarForm }"
-        @click="mostrarForm = !mostrarForm"
-      >
+      <button v-if="auth.esJefe" class="btn-icono" :class="{ 'boton-secundario': mostrarForm }" @click="mostrarForm = !mostrarForm">
         <IconClose v-if="mostrarForm" aria-hidden="true" />
         <IconAdd v-else aria-hidden="true" />
         {{ mostrarForm ? 'Cancelar' : 'Nueva orden' }}
@@ -433,17 +424,9 @@ onUnmounted(() => {
       </label>
       <label class="campo">
         <span>Tiempo estimado en horas (opcional)</span>
-        <input
-          v-model.number="nuevaOrden.tiempo_estimado"
-          type="number"
-          min="0.1"
-          step="0.1"
-          placeholder="Ej.: 2.5"
-        />
+        <input v-model.number="nuevaOrden.tiempo_estimado" type="number" min="0.1" step="0.1" placeholder="Ej.: 2.5" />
       </label>
-      <p class="hint-estimacion campo-ancho">
-        Sin costo y tiempo estimado, la orden no entra en el orden sugerido.
-      </p>
+      <p class="hint-estimacion campo-ancho">Sin costo y tiempo estimado, la orden no entra en el orden sugerido.</p>
       <label class="campo campo-ancho">
         <span>Criticidad del trabajo</span>
         <select v-model.number="nuevaOrden.criticidad">
@@ -494,18 +477,26 @@ onUnmounted(() => {
     <template v-else-if="!filtroEstado && (!errorCarga || ordenes.length)">
       <h3 class="grupo">Activas, en orden de prioridad sugerida</h3>
       <table class="tabla-ordenes">
-        <caption class="sr-only">Órdenes activas en el orden de prioridad sugerido</caption>
+        <caption class="sr-only">
+          Órdenes activas en el orden de prioridad sugerido
+        </caption>
         <thead>
-          <tr><th scope="col" class="col-rango">#</th><th scope="col" class="col-orden">Orden</th><th scope="col">Cliente</th><th scope="col" class="col-edad">Ingresó</th><th scope="col" class="col-equipo">Equipo</th><th scope="col" class="col-estado">Estado</th><th scope="col" class="col-prioridad">Prioridad</th></tr>
+          <tr>
+            <th scope="col" class="col-rango">#</th>
+            <th scope="col" class="col-orden">Orden</th>
+            <th scope="col">Cliente</th>
+            <th scope="col" class="col-edad">Ingresó</th>
+            <th scope="col" class="col-equipo">Equipo</th>
+            <th scope="col" class="col-estado">Estado</th>
+            <th scope="col" class="col-prioridad">Prioridad</th>
+          </tr>
         </thead>
         <tbody>
           <template v-for="(o, i) in activas" :key="o.id">
             <tr class="fila-orden" @click="abrirOrden(o.id, $event)">
               <td class="rango td-rango">{{ i + 1 }}</td>
               <td class="td-orden">
-                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
-                  OT-{{ String(o.id).padStart(4, '0') }}
-                </router-link>
+                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
               </td>
               <td class="td-cliente">
                 <span class="cliente-nombre" :title="o.cliente_nombre">{{ o.cliente_nombre }}</span>
@@ -516,7 +507,9 @@ onUnmounted(() => {
               </td>
               <td class="edad col-edad">{{ hace(o.fecha_ingreso) }}</td>
               <td class="col-equipo" :title="o.tipo_equipo ?? ''">{{ o.tipo_equipo ?? '-' }}</td>
-              <td class="col-estado"><span class="badge" :class="`badge-${o.estado}`">{{ etiquetaEstado(o.estado) }}</span></td>
+              <td class="col-estado">
+                <span class="badge" :class="`badge-${o.estado}`">{{ etiquetaEstado(o.estado) }}</span>
+              </td>
               <td class="td-prioridad">
                 <template v-if="o.indice_prioridad != null">
                   {{ Math.round(o.indice_prioridad) }}<span class="escala">/100</span>
@@ -525,8 +518,8 @@ onUnmounted(() => {
                     <span class="sr-only">Prioridad sugerida por IA</span>
                   </span>
                 </template>
-              <span v-else-if="estaCalculando(o)" class="chip-calculando">Calculando prioridad…</span>
-              <span v-else class="chip-sin-estimacion">Sin estimación</span>
+                <span v-else-if="estaCalculando(o)" class="chip-calculando">Calculando prioridad…</span>
+                <span v-else class="chip-sin-estimacion">Sin estimación</span>
               </td>
             </tr>
             <tr v-if="o.justificacion_prioridad" class="fila-justificacion">
@@ -550,14 +543,22 @@ onUnmounted(() => {
       <template v-if="bloqueadas.length">
         <h3 class="grupo">Bloqueadas</h3>
         <table class="tabla-secundaria tabla-bloqueadas">
-          <caption class="sr-only">Órdenes bloqueadas y su motivo</caption>
-          <thead><tr><th scope="col">Orden</th><th scope="col">Cliente</th><th scope="col" class="col-edad">Ingresó</th><th scope="col" class="col-equipo">Equipo</th><th scope="col">Motivo</th></tr></thead>
+          <caption class="sr-only">
+            Órdenes bloqueadas y su motivo
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Orden</th>
+              <th scope="col">Cliente</th>
+              <th scope="col" class="col-edad">Ingresó</th>
+              <th scope="col" class="col-equipo">Equipo</th>
+              <th scope="col">Motivo</th>
+            </tr>
+          </thead>
           <tbody>
             <tr v-for="o in bloqueadas" :key="o.id" class="fila-orden" @click="abrirOrden(o.id, $event)">
               <td>
-                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
-                  OT-{{ String(o.id).padStart(4, '0') }}
-                </router-link>
+                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
               </td>
               <td>{{ o.cliente_nombre }}</td>
               <td class="edad col-edad">{{ hace(o.fecha_ingreso) }}</td>
@@ -571,14 +572,20 @@ onUnmounted(() => {
       <details v-if="terminadas.length" class="terminadas">
         <summary>Terminadas ({{ terminadas.length }})</summary>
         <table class="tabla-secundaria tabla-terminadas">
-          <caption class="sr-only">Órdenes terminadas</caption>
-          <thead><tr><th scope="col">Orden</th><th scope="col">Cliente</th><th scope="col">Equipo</th></tr></thead>
+          <caption class="sr-only">
+            Órdenes terminadas
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Orden</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">Equipo</th>
+            </tr>
+          </thead>
           <tbody>
             <tr v-for="o in terminadas" :key="o.id" class="fila-orden" @click="abrirOrden(o.id, $event)">
               <td>
-                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
-                  OT-{{ String(o.id).padStart(4, '0') }}
-                </router-link>
+                <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
               </td>
               <td>{{ o.cliente_nombre }}</td>
               <td class="col-equipo" :title="o.tipo_equipo ?? ''">{{ o.tipo_equipo ?? '-' }}</td>
@@ -589,18 +596,26 @@ onUnmounted(() => {
     </template>
 
     <table v-else-if="!errorCarga || ordenes.length" class="tabla-ordenes">
-      <caption class="sr-only">Órdenes filtradas por estado</caption>
+      <caption class="sr-only">
+        Órdenes filtradas por estado
+      </caption>
       <thead>
-        <tr><th scope="col" class="col-rango">#</th><th scope="col" class="col-orden">Orden</th><th scope="col">Cliente</th><th scope="col" class="col-edad">Ingresó</th><th scope="col" class="col-equipo">Equipo</th><th scope="col" class="col-estado">Estado</th><th scope="col" class="col-prioridad">Prioridad</th></tr>
+        <tr>
+          <th scope="col" class="col-rango">#</th>
+          <th scope="col" class="col-orden">Orden</th>
+          <th scope="col">Cliente</th>
+          <th scope="col" class="col-edad">Ingresó</th>
+          <th scope="col" class="col-equipo">Equipo</th>
+          <th scope="col" class="col-estado">Estado</th>
+          <th scope="col" class="col-prioridad">Prioridad</th>
+        </tr>
       </thead>
       <tbody>
         <template v-for="(o, i) in ordenes" :key="o.id">
           <tr class="fila-orden" @click="abrirOrden(o.id, $event)">
             <td class="rango td-rango">{{ i + 1 }}</td>
             <td class="td-orden">
-              <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }">
-                OT-{{ String(o.id).padStart(4, '0') }}
-              </router-link>
+              <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
             </td>
             <td class="td-cliente">
               <span class="cliente-nombre" :title="o.cliente_nombre">{{ o.cliente_nombre }}</span>
@@ -953,9 +968,9 @@ onUnmounted(() => {
     display: grid;
     grid-template-columns: 1.25rem 1fr auto;
     grid-template-areas:
-      "rango orden prioridad"
-      "cliente cliente cliente"
-      "meta meta meta";
+      'rango orden prioridad'
+      'cliente cliente cliente'
+      'meta meta meta';
     align-items: center;
     column-gap: 0.5rem;
     row-gap: 0;

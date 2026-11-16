@@ -153,16 +153,12 @@ onMounted(cargar)
       <p v-if="!auth.esJefe" class="hint">Solo el Jefe de Taller puede importar listas de precios.</p>
       <template v-else-if="!previsualizacionPorProveedor[p.id]">
         <p class="hint">
-          Subí la lista de precios (.csv o .xlsx) con las columnas que use este proveedor —
-          no hace falta que coincidan con las de otro proveedor, en el siguiente paso decís
-          cuál es cuál.
+          Subí la lista de precios (.csv o .xlsx) con las columnas que use este proveedor — no hace falta que coincidan con las de otro proveedor, en el
+          siguiente paso decís cuál es cuál.
         </p>
         <div class="importar">
           <input type="file" accept=".csv,.xlsx" @change="onArchivoSeleccionado(p.id, $event)" />
-          <button
-            :disabled="cargandoPreview === p.id || !archivoPorProveedor[p.id]"
-            @click="previsualizar(p.id)"
-          >
+          <button :disabled="cargandoPreview === p.id || !archivoPorProveedor[p.id]" @click="previsualizar(p.id)">
             {{ cargandoPreview === p.id ? 'Leyendo…' : 'Continuar' }}
           </button>
         </div>
@@ -172,9 +168,7 @@ onMounted(cargar)
         <div class="mapeo">
           <p class="hint">
             {{ previsualizacionPorProveedor[p.id]!.totalFilas }} filas encontradas.
-            <span v-if="previsualizacionPorProveedor[p.id]!.mapeoReutilizado">
-              Usamos el mismo mapeo de la última vez — revisalo y confirmá.
-            </span>
+            <span v-if="previsualizacionPorProveedor[p.id]!.mapeoReutilizado"> Usamos el mismo mapeo de la última vez — revisalo y confirmá. </span>
             <span v-else>Elegí qué columna de la planilla es cada dato.</span>
           </p>
 
@@ -183,21 +177,27 @@ onMounted(cargar)
               Código (obligatorio)
               <select v-model="previsualizacionPorProveedor[p.id]!.colCodigo">
                 <option value="">— elegir columna —</option>
-                <option v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h" :value="h">{{ h }}</option>
+                <option v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h" :value="h">
+                  {{ h }}
+                </option>
               </select>
             </label>
             <label>
               Descripción (opcional)
               <select v-model="previsualizacionPorProveedor[p.id]!.colDescripcion">
                 <option value="">— sin descripción —</option>
-                <option v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h" :value="h">{{ h }}</option>
+                <option v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h" :value="h">
+                  {{ h }}
+                </option>
               </select>
             </label>
             <label>
               Precio (obligatorio)
               <select v-model="previsualizacionPorProveedor[p.id]!.colPrecio">
                 <option value="">— elegir columna —</option>
-                <option v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h" :value="h">{{ h }}</option>
+                <option v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h" :value="h">
+                  {{ h }}
+                </option>
               </select>
             </label>
           </div>
@@ -212,7 +212,9 @@ onMounted(cargar)
               </thead>
               <tbody>
                 <tr v-for="(fila, i) in previsualizacionPorProveedor[p.id]!.muestra" :key="i">
-                  <td v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h">{{ fila[h] }}</td>
+                  <td v-for="h in previsualizacionPorProveedor[p.id]!.headers" :key="h">
+                    {{ fila[h] }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -230,12 +232,11 @@ onMounted(cargar)
       <p v-if="errorPorProveedor[p.id]" class="error">{{ errorPorProveedor[p.id] }}</p>
 
       <div v-if="resultadoPorProveedor[p.id]" class="resultado">
-        <p>
-          {{ resultadoPorProveedor[p.id].precios_creados }} precios nuevos,
-          {{ resultadoPorProveedor[p.id].precios_actualizados }} actualizados.
-        </p>
+        <p>{{ resultadoPorProveedor[p.id].precios_creados }} precios nuevos, {{ resultadoPorProveedor[p.id].precios_actualizados }} actualizados.</p>
         <ul v-if="resultadoPorProveedor[p.id].filas_con_error.length">
-          <li v-for="(e, i) in resultadoPorProveedor[p.id].filas_con_error" :key="i" class="error">{{ e }}</li>
+          <li v-for="(e, i) in resultadoPorProveedor[p.id].filas_con_error" :key="i" class="error">
+            {{ e }}
+          </li>
         </ul>
       </div>
     </div>
