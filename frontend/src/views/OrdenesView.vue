@@ -576,7 +576,7 @@ onUnmounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="o in terminadas" :key="o.id" class="fila-orden" @click="abrirOrden(o.id, $event)">
+            <tr v-for="o in terminadas" :key="o.id" class="fila-orden">
               <td>
                 <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
               </td>
