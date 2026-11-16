@@ -344,8 +344,7 @@ onMounted(cargar)
       <section class="card">
         <h3>Prioridad</h3>
         <p v-if="orden.indice_prioridad != null" class="puntaje">
-          <strong>{{ Math.round(orden.indice_prioridad) }}</strong
-          ><span class="escala">/100</span>
+          <strong>{{ Math.round(orden.indice_prioridad) }}</strong><span class="escala">/100</span>
           <span v-if="orden.prioridad_origen" class="origen">
             {{ orden.prioridad_origen === 'ia' ? 'decidida por IA' : 'regla de respaldo' }}
           </span>
@@ -399,14 +398,7 @@ onMounted(cargar)
           <summary>Registrar repuesto</summary>
           <div class="form-repuesto">
             <label class="checkbox-inline">
-              <input
-                type="checkbox"
-                v-model="porEncargo"
-                @change="
-                  repuestoSeleccionado = null
-                  buscadorRepuesto?.limpiar()
-                "
-              />
+              <input type="checkbox" v-model="porEncargo" @change="((repuestoSeleccionado = null), buscadorRepuesto?.limpiar())" />
               Es por encargo (no está en el catálogo)
             </label>
 

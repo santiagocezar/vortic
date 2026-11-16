@@ -212,13 +212,6 @@ function hace(fecha: string | null): string {
   return dias === 1 ? 'hace 1 día' : `hace ${dias} días`
 }
 
-function abrirOrden(id: number, event: Event) {
-  // El código OT es un <router-link> real: si el click viene de ahí (o de
-  // cualquier otro enlace), que lo maneje el enlace y no naveguemos dos veces.
-  if ((event.target as HTMLElement | null)?.closest('a')) return
-  router.push({ name: 'orden-detalle', params: { id } })
-}
-
 function elegirCliente(c: Cliente) {
   clienteSeleccionado.value = c
 }
@@ -493,7 +486,7 @@ onUnmounted(() => {
         </thead>
         <tbody>
           <template v-for="(o, i) in activas" :key="o.id">
-            <tr class="fila-orden" @click="abrirOrden(o.id, $event)">
+            <tr class="fila-orden">
               <td class="rango td-rango">{{ i + 1 }}</td>
               <td class="td-orden">
                 <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
@@ -556,7 +549,7 @@ onUnmounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="o in bloqueadas" :key="o.id" class="fila-orden" @click="abrirOrden(o.id, $event)">
+            <tr v-for="o in bloqueadas" :key="o.id" class="fila-orden">
               <td>
                 <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
               </td>
@@ -612,7 +605,7 @@ onUnmounted(() => {
       </thead>
       <tbody>
         <template v-for="(o, i) in ordenes" :key="o.id">
-          <tr class="fila-orden" @click="abrirOrden(o.id, $event)">
+          <tr class="fila-orden">
             <td class="rango td-rango">{{ i + 1 }}</td>
             <td class="td-orden">
               <router-link class="orden-link" :to="{ name: 'orden-detalle', params: { id: o.id } }"> OT-{{ String(o.id).padStart(4, '0') }} </router-link>
@@ -794,7 +787,10 @@ onUnmounted(() => {
   font-size: 0.8rem;
 }
 .fila-orden {
-  cursor: pointer;
+  position: relative;
+  & td {
+    border: none;
+  }
 }
 .fila-orden:hover,
 .fila-orden:focus-within {
@@ -811,6 +807,13 @@ onUnmounted(() => {
   /* Un código OT es un solo token: se dicta y se escribe a mano, así que no
      puede partirse en "OT-" / "0001". */
   white-space: nowrap;
+
+  &::before {
+    content: '';
+    display: block;
+    position: absolute;
+    inset: 0;
+  }
 }
 .orden-link:hover {
   text-decoration: underline;
@@ -834,7 +837,7 @@ onUnmounted(() => {
   align-items: center;
   margin-left: 0.25rem;
   vertical-align: -0.15em;
-  color: #475569;
+  color: #3b82f6;
 }
 .origen-ia svg {
   width: 0.9em;
@@ -875,7 +878,7 @@ onUnmounted(() => {
   width: 7rem;
 }
 .tabla-ordenes .col-prioridad {
-  width: 6rem;
+  width: 7rem;
 }
 .tabla-ordenes .col-equipo,
 .tabla-ordenes .td-cliente,
@@ -913,6 +916,10 @@ onUnmounted(() => {
    celular viajan debajo del cliente para no perderlos al colapsar la tabla. */
 .fila-meta {
   display: none;
+}
+
+.tabla-ordenes .td-prioridad {
+  text-align: right;
 }
 
 @media (max-width: 640px) {
